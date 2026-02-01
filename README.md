@@ -148,3 +148,8 @@ npm run test:benchmark  # Run performance benchmarks
 ```
 
 Tests are fully isolated and don't affect your real session data.
+
+## Code organization
+
+- `src/commands.ts` is the main entrypoint for the interactive loop and public exports.
+- `src/commands/` contains focused modules (history, git, sessions, database, mappings, config, search, compound, execute-core, menu stack, and helpers).

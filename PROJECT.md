@@ -213,7 +213,7 @@ interface CommandEntry {
 ---
 
 #### `commands.ts` (Command Execution Engine)
-**Purpose:** The largest module handling all command execution, compound commands, and user interactions.
+**Purpose:** Main entrypoint that hosts the interactive loop, command execution, and re-exports public API.
 
 **Size:** ~59KB (1700+ lines)
 
@@ -222,23 +222,23 @@ interface CommandEntry {
 **Main Functions:**
 - `executeCommand()` - Primary NL command execution with alias/chain detection
 - `executeCommandFromMenu()` - Interactive menu-driven execution
-- `executeCompoundCommand()` - Handles multi-command chains
-- `executeCompoundAlias()` - Executes saved compound command aliases
 - `mainLoop()` - Main interactive menu loop with session display
 
 **Menu Functions:**
-- `browseDatabase()` - Explore built-in command database
-- `listCommandsByCategory()` - List commands grouped by category
-- `searchDatabaseCommands()` - Search within database
-- `showPopularCommands()` - Display frequently used commands
 - `checkAndInstallEditors()` - Check editor installation status with indicators
 
-**Configuration Functions:**
-- `configureMappings()` - Main configuration menu
-- `addNewMapping()` - Add new NL → command mapping
-- `editMapping()` - Edit existing mapping
-- `deleteMappingInteractive()` - Delete a mapping
-- `addCompoundCommandAlias()` - Create multi-command shortcuts
+**Split UI/Logic Modules:**
+- `src/commands/config-ui.ts` - Mapping configuration flows (add/edit/delete/compound aliases)
+- `src/commands/mappings-ui.ts` - List mappings summary
+- `src/commands/database-ui.ts` - Database browsing + management menus
+- `src/commands/history-ui.ts` - History browsing/search/export menus
+- `src/commands/git-ui.ts` - Git interactive menu
+- `src/commands/sessions-ui.ts` - Session management/takeover menus
+- `src/commands/search.ts` - File search UI
+- `src/commands/execute-core.ts` - Command execution + confirmation
+- `src/commands/compound.ts` - Compound parsing/execution helpers
+- `src/commands/menu-stack.ts` - Menu stack utilities
+- `src/commands/db-core.ts` - Database initialization/ensure helpers
 
 **Menu Style Functions:**
 - `toggleMenuStyle()` - Switches between list and expand view
@@ -292,6 +292,8 @@ interface CommandEntry {
 - `searchFiles()` - File search functionality
 - `listMappings()` - List all mappings
 - `configureMappings()` - Configuration interface
+- `browseDatabase()` - Database browsing entrypoint
+- `executeWithConfirmation()` - Execution helper (re-exported)
 - `mainLoop()` - Interactive main menu
 - `detectCompoundCommand()` - For testing
 - `parseCompoundCommand()` - For testing
@@ -553,7 +555,7 @@ template.replace(/\{(\w+)\}/g, (match, name) => {
 
 #### Integration Points
 
-**1. User Mappings (`addNewMapping` in commands.ts)**
+**1. User Mappings (`addNewMapping` in commands/config-ui.ts)**
 
 When users create custom mappings:
 ```typescript
@@ -566,7 +568,7 @@ const mapping = parseUserMapping(nlInput, cmdTemplate);
 // mapping.placeholders = [{ name: "folder_name", description: "folder name", required: true }]
 ```
 
-**2. Compound Commands (`addCompoundCommandAlias` in commands.ts)**
+**2. Compound Commands (`addCompoundCommandAlias` in commands/config-ui.ts)**
 
 Placeholders work in compound commands:
 ```typescript
