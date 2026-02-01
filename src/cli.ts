@@ -10,10 +10,10 @@ import {
 } from './commands.js';
 import { initConfig, configExists } from './config.js';
 import { initDatabase, seedDatabase } from './database.js';
+import { isGitRepository, getCurrentBranch } from './git.js';
 import chalk from 'chalk';
 import path from 'path';
 import os from 'os';
-import { spawnSync } from 'child_process';
 import { stdout } from 'process';
 import { setColorEnabled } from './utils.js';
 
@@ -34,36 +34,13 @@ function getRelativeCwd(): string {
   return cwd.replace(/\\/g, '/');
 }
 
-// Helper to get git repository info
+// Helper to get git repository info (uses git.ts module)
 function getGitInfo(): { isRepo: boolean; branch?: string } {
-  try {
-    // Check if we're in a git repo by running git rev-parse --git-dir
-    const result = spawnSync('git', ['rev-parse', '--git-dir'], {
-      cwd: process.cwd(),
-      encoding: 'utf-8',
-      timeout: 1000
-    });
-    
-    if (result.status !== 0) {
-      return { isRepo: false };
-    }
-    
-    // Get the current branch name
-    const branchResult = spawnSync('git', ['branch', '--show-current'], {
-      cwd: process.cwd(),
-      encoding: 'utf-8',
-      timeout: 1000
-    });
-    
-    if (branchResult.status === 0) {
-      const branch = branchResult.stdout?.trim();
-      return { isRepo: true, branch };
-    }
-    
-    return { isRepo: true };
-  } catch {
+  if (!isGitRepository()) {
     return { isRepo: false };
   }
+  const branch = getCurrentBranch();
+  return { isRepo: true, branch: branch || undefined };
 }
 
 // Build git info line

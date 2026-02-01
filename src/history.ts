@@ -87,10 +87,34 @@ export interface Session {
   isShared?: boolean;            // Whether session can be used by multiple terminals
 }
 
-const HISTORY_DIR = path.join(os.homedir(), '.nl-terminal-cli');
-const HISTORY_FILE = path.join(HISTORY_DIR, 'history.json');
-const SESSIONS_FILE = path.join(HISTORY_DIR, 'sessions.json');
-const SESSIONS_EXPORT_DIR = path.join(HISTORY_DIR, 'sessions');
+/**
+ * Get the history directory path
+ * Using a function instead of a constant to support dynamic HOME changes (e.g., in tests)
+ */
+function getHistoryDir(): string {
+  return path.join(os.homedir(), '.nl-terminal-cli');
+}
+
+/**
+ * Get the history file path
+ */
+function getHistoryFile(): string {
+  return path.join(getHistoryDir(), 'history.json');
+}
+
+/**
+ * Get the sessions file path
+ */
+function getSessionsFile(): string {
+  return path.join(getHistoryDir(), 'sessions.json');
+}
+
+/**
+ * Get the sessions export directory path
+ */
+function getSessionsExportDir(): string {
+  return path.join(getHistoryDir(), 'sessions');
+}
 
 let currentSessionId: string | null = null;
 let activeSessions: Set<string> = new Set();
@@ -101,7 +125,7 @@ let currentActiveSessionId: string | null = null;
  */
 async function ensureHistoryDir(): Promise<void> {
   try {
-    await fs.mkdir(HISTORY_DIR, { recursive: true });
+    await fs.mkdir(getHistoryDir(), { recursive: true });
   } catch {
     // Directory already exists
   }
@@ -137,7 +161,7 @@ export async function endSession(): Promise<void> {
  */
 async function getSessions(): Promise<Session[]> {
   try {
-    const data = await fs.readFile(SESSIONS_FILE, 'utf-8');
+    const data = await fs.readFile(getSessionsFile(), 'utf-8');
     return JSON.parse(data);
   } catch {
     return [];
@@ -149,7 +173,7 @@ async function getSessions(): Promise<Session[]> {
  */
 async function saveSessions(sessions: Session[]): Promise<void> {
   await ensureHistoryDir();
-  await fs.writeFile(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+  await fs.writeFile(getSessionsFile(), JSON.stringify(sessions, null, 2));
 }
 
 /**
@@ -216,7 +240,7 @@ export async function addToHistory(
  */
 export async function getHistory(): Promise<CommandHistoryEntry[]> {
   try {
-    const data = await fs.readFile(HISTORY_FILE, 'utf-8');
+    const data = await fs.readFile(getHistoryFile(), 'utf-8');
     return JSON.parse(data);
   } catch {
     return [];
@@ -228,7 +252,7 @@ export async function getHistory(): Promise<CommandHistoryEntry[]> {
  */
 async function saveHistory(history: CommandHistoryEntry[]): Promise<void> {
   await ensureHistoryDir();
-  await fs.writeFile(HISTORY_FILE, JSON.stringify(history, null, 2));
+  await fs.writeFile(getHistoryFile(), JSON.stringify(history, null, 2));
 }
 
 /**
@@ -307,7 +331,7 @@ export async function exportHistory(
   customPath?: string
 ): Promise<string> {
   // Determine the export directory
-  let exportDir = customPath || SESSIONS_EXPORT_DIR;
+  let exportDir = customPath || getSessionsExportDir();
   
   // Expand ~ to home directory (shell doesn't do this automatically in Node.js)
   if (exportDir.startsWith('~/')) {
@@ -394,8 +418,8 @@ export async function searchHistory(query: string): Promise<CommandHistoryEntry[
  */
 export async function clearHistory(): Promise<void> {
   await ensureHistoryDir();
-  await fs.writeFile(HISTORY_FILE, '[]');
-  await fs.writeFile(SESSIONS_FILE, '[]');
+  await fs.writeFile(getHistoryFile(), '[]');
+  await fs.writeFile(getSessionsFile(), '[]');
 }
 
 /**

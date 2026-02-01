@@ -75,6 +75,11 @@ nl-terminal-cli/
 **Purpose:** Manages cross-terminal session coordination, ownership tracking, and secure session takeover.
 **Size:** ~12KB (400+ lines)
 
+**Path Functions (dynamic for test isolation):**
+- `getHistoryDir()` - Returns `~/.nl-terminal-cli` (evaluated at call time)
+- `getTerminalRegistryFile()` - Returns terminal-registry.json path
+- `getLockFile()` - Returns .registry.lock path
+
 **Key Functions:**
 - `getTerminalId()` - Returns unique terminal identifier (PID + TTY + timestamp)
 - `generateSessionKey()` - Creates 8-character alphanumeric session key
@@ -114,6 +119,7 @@ interface TakeoverRequest {
 **Storage:**
 - `~/.nl-terminal-cli/terminal-registry.json` - Terminal and session ownership data
 - Lock file mechanism for cross-process coordination
+- Path resolution uses `getHistoryDir()` for dynamic HOME support (enables test isolation)
 
 **Session Key Format:**
 - 8 characters, alphanumeric (excludes confusing: 0, O, I, 1, L)
@@ -129,6 +135,12 @@ interface TakeoverRequest {
 #### `history.ts` (Session & History Management)
 **Purpose:** Manages command history tracking and multi-session state.
 **Size:** ~18KB (550+ lines)
+
+**Path Functions (dynamic for test isolation):**
+- `getHistoryDir()` - Returns `~/.nl-terminal-cli` (evaluated at call time)
+- `getHistoryFile()` - Returns history.json path
+- `getSessionsFile()` - Returns sessions.json path
+- `getSessionsExportDir()` - Returns sessions export folder path
 
 **Key Functions:**
 - `createNewSession()` - Creates a new session and makes it active
@@ -176,6 +188,7 @@ interface CommandEntry {
 - `~/.nl-terminal-cli/sessions.json` - Persistent session metadata
 - `~/.nl-terminal-cli/history.json` - Flat command history with full output
 - `~/.nl-terminal-cli/sessions/` - Exported session files (default export location)
+- Path resolution uses `getHistoryDir()` for dynamic HOME support (enables test isolation)
 
 **Multi-Session Flow:**
 1. CLI starts → `initMultiSession()` ensures an active session
@@ -677,6 +690,88 @@ import { getInquirer } from './lazy-modules.js';
 // Later, when needed:
 const inquirer = await getInquirer();
 const { answer } = await inquirer.default.prompt([...]);
+```
+
+---
+
+#### `git.ts` (Git Utilities Module)
+**Purpose:** Provides git operations for the Git menu including status, diff, branches, commit, push/pull.
+**Size:** ~16KB (500+ lines)
+
+**Core Types:**
+```typescript
+interface Branch {
+  name: string;
+  isCurrent: boolean;
+  isRemote: boolean;
+  remoteName?: string;
+}
+
+interface GitStatus {
+  isClean: boolean;
+  staged: number;
+  unstaged: number;
+  untracked: number;
+  ahead: number;
+  behind: number;
+  branch: string | null;
+  files: StatusFile[];
+}
+
+interface DiffResult {
+  raw: string;
+  formatted: string;
+  filesChanged: number;
+  insertions: number;
+  deletions: number;
+  files: DiffFile[];
+}
+
+interface GitResult {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+```
+
+**Key Functions:**
+
+| Function | Description |
+|----------|-------------|
+| `isGitRepository()` | Check if current directory is a git repo |
+| `getCurrentBranch()` | Get current branch name |
+| `getLocalBranches()` | List local branches |
+| `getRemoteBranches()` | List remote branches (with fetch) |
+| `getAllBranches()` | Get both local and remote branches |
+| `getGitStatus()` | Get parsed status (staged, unstaged, untracked) |
+| `getGitDiff(options?)` | Get diff with options (staged, file) |
+| `formatEnhancedDiff()` | Color-coded diff formatting |
+| `formatStatusSummary()` | Short status line |
+| `formatDetailedStatus()` | Full status display |
+| `switchBranch(name)` | Checkout to branch |
+| `createBranch(name, checkout?)` | Create new branch |
+| `deleteBranch(name, force?)` | Delete a branch |
+| `stageAll()` | Stage all changes |
+| `gitCommit(message)` | Commit staged changes |
+| `gitPush(remote?, branch?)` | Push to remote |
+| `gitPull(remote?, branch?)` | Pull from remote |
+| `gitInit()` | Initialize new repository |
+| `getCommitLog(count?)` | Get recent commits |
+| `formatCommitLog()` | Format commit history |
+
+**Enhanced Diff Output:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 📝 Git Diff: 3 files changed, +45 / -12 lines               │
+└─────────────────────────────────────────────────────────────┘
+
+📄 src/commands.ts (+30 -5)
+───────────────────────────────────────────────────────────────
+  45 │   const result = await selectFromList(...);
+     │ - if (result === 'old') {                    ← RED
+  46 │ + if (result === 'new') {                    ← GREEN
+  47 │ + // Added new logic here                    ← GREEN
+  48 │   return true;
 ```
 
 ---
@@ -1796,6 +1891,17 @@ Feature release with multi-terminal session management, safety improvements, and
   - Full bundle (1.9MB) - No dependencies needed
   - Bun direct from source is fastest (~46ms startup)
 
+- ✅ **Git Integration** - Full-featured Git menu
+  - Interactive Git menu (`g` in expand mode)
+  - Enhanced color-coded diff viewer (all/staged/file)
+  - Interactive branch switching (local + remote)
+  - Branch creation and deletion with confirmation
+  - Stage and commit flow
+  - Push/pull operations
+  - Commit history viewer
+  - Git init support for non-git directories
+  - Dangerous operation warnings (delete branch)
+
 ### v0.0.1 - January 30, 2026
 Major feature release with multi-session support and command history system.
 
@@ -1898,8 +2004,9 @@ See README.md for contribution guidelines and development setup.
 ### File Sizes
 | File | Size | Lines |
 |------|------|-------|
-| `commands.ts` | ~62KB | 1800+ |
+| `commands.ts` | ~70KB | 2100+ |
 | `database.ts` | ~49KB | 1200+ |
+| `git.ts` | ~16KB | 500+ |
 | `terminal-session.ts` | ~12KB | 400+ |
 | `history.ts` | ~18KB | 550+ |
 | `matcher.ts` | ~11KB | 350+ |
@@ -1911,6 +2018,7 @@ See README.md for contribution guidelines and development setup.
 ### Test Files
 | File | Purpose |
 |------|---------|
+| `git.test.ts` | Git utilities tests |
 | `benchmark.test.ts` | Performance benchmarks (Node.js vs Bun) |
 | `compound-commands.test.ts` | Compound command parsing tests |
 | `integration-cli.test.ts` | CLI integration tests |
@@ -1918,8 +2026,8 @@ See README.md for contribution guidelines and development setup.
 | `security.test.ts` | Security and injection prevention tests |
 
 ### Total Source Code
-- **~150KB** of TypeScript source
-- **~4300+** lines of code
+- **~170KB** of TypeScript source
+- **~5000+** lines of code
 - **158** built-in commands with placeholders (9 categories including Bun)
 - **80+** supported file extensions
 - **Multi-session** architecture

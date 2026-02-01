@@ -57,9 +57,28 @@ export interface TerminalRegistry {
   lastUpdated: string;
 }
 
-const HISTORY_DIR = path.join(os.homedir(), '.nl-terminal-cli');
-const TERMINAL_REGISTRY_FILE = path.join(HISTORY_DIR, 'terminal-registry.json');
-const LOCK_FILE = path.join(HISTORY_DIR, '.registry.lock');
+/**
+ * Get the history directory path
+ * Using a function instead of a constant to support dynamic HOME changes (e.g., in tests)
+ */
+function getHistoryDir(): string {
+  return path.join(os.homedir(), '.nl-terminal-cli');
+}
+
+/**
+ * Get the terminal registry file path
+ */
+function getTerminalRegistryFile(): string {
+  return path.join(getHistoryDir(), 'terminal-registry.json');
+}
+
+/**
+ * Get the lock file path
+ */
+function getLockFile(): string {
+  return path.join(getHistoryDir(), '.registry.lock');
+}
+
 const HEARTBEAT_INTERVAL = 5000; // 5 seconds
 const STALE_THRESHOLD = 15000;   // 15 seconds - terminal considered dead if no heartbeat
 const TAKEOVER_REQUEST_EXPIRY = 60000; // 60 seconds for takeover request to expire
@@ -163,7 +182,7 @@ export function getTerminalId(): string {
  */
 async function ensureDir(): Promise<void> {
   try {
-    await fs.mkdir(HISTORY_DIR, { recursive: true });
+    await fs.mkdir(getHistoryDir(), { recursive: true });
   } catch {
     // Directory exists
   }
@@ -178,17 +197,17 @@ async function acquireLock(timeout: number = 5000): Promise<boolean> {
   while (Date.now() - startTime < timeout) {
     try {
       // Try to create lock file exclusively
-      await fs.writeFile(LOCK_FILE, `${process.pid}`, { flag: 'wx' });
+      await fs.writeFile(getLockFile(), `${process.pid}`, { flag: 'wx' });
       return true;
     } catch (err: any) {
       if (err.code === 'EEXIST') {
         // Lock exists, check if it's stale
         try {
-          const stat = await fs.stat(LOCK_FILE);
+          const stat = await fs.stat(getLockFile());
           const age = Date.now() - stat.mtimeMs;
           if (age > STALE_THRESHOLD) {
             // Stale lock, remove it
-            await fs.unlink(LOCK_FILE);
+            await fs.unlink(getLockFile());
             continue;
           }
         } catch {
@@ -212,7 +231,7 @@ async function acquireLock(timeout: number = 5000): Promise<boolean> {
  */
 async function releaseLock(): Promise<void> {
   try {
-    await fs.unlink(LOCK_FILE);
+    await fs.unlink(getLockFile());
   } catch {
     // Lock already released or doesn't exist
   }
@@ -223,7 +242,7 @@ async function releaseLock(): Promise<void> {
  */
 async function loadRegistry(): Promise<TerminalRegistry> {
   try {
-    const data = await fs.readFile(TERMINAL_REGISTRY_FILE, 'utf-8');
+    const data = await fs.readFile(getTerminalRegistryFile(), 'utf-8');
     const registry = JSON.parse(data);
     // Ensure takeoverRequests exists for backward compatibility
     if (!registry.takeoverRequests) {
@@ -246,7 +265,7 @@ async function loadRegistry(): Promise<TerminalRegistry> {
 async function saveRegistry(registry: TerminalRegistry): Promise<void> {
   await ensureDir();
   registry.lastUpdated = new Date().toISOString();
-  await fs.writeFile(TERMINAL_REGISTRY_FILE, JSON.stringify(registry, null, 2));
+  await fs.writeFile(getTerminalRegistryFile(), JSON.stringify(registry, null, 2));
 }
 
 /**

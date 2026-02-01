@@ -96,7 +96,23 @@ nl-terminal --no-color
 - Multi-terminal session management with secure takeover
 - Dangerous command warnings (rm, sudo) with confirmation prompts
 - Export history to custom folders
+- **Git integration** - Interactive diff viewer, branch switching, commit/push/pull
 - Runs on Node.js or Bun
+
+## Git Integration
+
+The CLI includes a dedicated Git menu (`g` in expand mode) for common operations:
+
+| Feature | Description |
+|---------|-------------|
+| **Status** | View working tree status with file counts |
+| **Diff** | Enhanced color-coded diff viewer (all/staged/file) |
+| **Branches** | Interactive branch switching (local + remote), create, delete |
+| **Commit** | Stage changes and commit with message |
+| **Push/Pull** | Sync with remote repository |
+| **Log** | View commit history |
+
+When not in a git repository, the menu offers to initialize one with `git init`.
 
 ## Performance
 
@@ -127,6 +143,8 @@ npm install
 npm run build        # Build Node.js version
 npm run build:bun    # Build Bun version
 npm run build:all    # Build both versions
-npm test             # Run all tests
+npm test             # Run all tests (73 tests)
 npm run test:benchmark  # Run performance benchmarks
 ```
+
+Tests are fully isolated and don't affect your real session data.
