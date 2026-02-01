@@ -2,6 +2,65 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import chalk from 'chalk';
+import {
+  initTerminalSession,
+  getTerminalId,
+  getCurrentTerminalInfo,
+  claimSession,
+  releaseSession,
+  isSessionOwnedByCurrentTerminal,
+  getSessionOwner,
+  getActiveTerminals,
+  getSessionsOwnedByOtherTerminals,
+  getCurrentTerminalSessions,
+  getTerminalDisplayName,
+  forceClaimSession,
+  getSessionKey,
+  getCurrentTerminalSessionKeys,
+  verifySessionKey,
+  takeoverSessionWithKey,
+  createTakeoverRequest,
+  getPendingTakeoverRequests,
+  approveTakeoverRequest,
+  denyTakeoverRequest,
+  checkTakeoverRequestStatus,
+  checkSessionTakeover,
+  getSessionsTakenOver,
+  sessionEvents,
+  type TerminalInfo,
+  type TakeoverRequest
+} from './terminal-session.js';
+
+/**
+ * Format a date as UTC string for display
+ * @param date Date object or ISO string
+ * @param includeDate Whether to include the date portion (default: true)
+ * @returns Formatted UTC string like "2024-01-30 14:30:45 UTC" or "14:30:45 UTC"
+ */
+export function formatUTC(date: Date | string, includeDate: boolean = true): string {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const hours = String(d.getUTCHours()).padStart(2, '0');
+  const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+  const seconds = String(d.getUTCSeconds()).padStart(2, '0');
+  
+  if (includeDate) {
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC`;
+  }
+  return `${hours}:${minutes}:${seconds} UTC`;
+}
+
+/**
+ * Format a date as short UTC string (time only)
+ * @param date Date object or ISO string
+ * @returns Formatted UTC time string like "14:30:45 UTC"
+ */
+export function formatUTCTime(date: Date | string): string {
+  return formatUTC(date, false);
+}
 
 export interface CommandHistoryEntry {
   id: string;
@@ -22,6 +81,10 @@ export interface Session {
   endTime?: string;
   commands: CommandHistoryEntry[];
   name?: string;
+  // Multi-terminal support fields
+  terminalId?: string;           // Terminal that created this session
+  lastTerminalId?: string;       // Last terminal that used this session
+  isShared?: boolean;            // Whether session can be used by multiple terminals
 }
 
 const HISTORY_DIR = path.join(os.homedir(), '.nl-terminal-cli');
@@ -231,19 +294,34 @@ export async function reloadSession(sessionId: string): Promise<Session | null> 
 
 /**
  * Export history to a file
- * Saves to sessions folder by default
+ * Saves to sessions folder by default, or to a custom path if provided
+ * @param filename The filename to export to
+ * @param format The format to export in (json, txt, markdown)
+ * @param sessionId Optional session ID to export (exports all history if not provided)
+ * @param customPath Optional custom folder path to export to
  */
 export async function exportHistory(
   filename: string,
   format: 'json' | 'txt' | 'markdown' = 'json',
-  sessionId?: string
+  sessionId?: string,
+  customPath?: string
 ): Promise<string> {
-  // Ensure sessions export directory exists
-  await fs.mkdir(SESSIONS_EXPORT_DIR, { recursive: true });
+  // Determine the export directory
+  let exportDir = customPath || SESSIONS_EXPORT_DIR;
   
-  // Build full filepath in sessions folder
+  // Expand ~ to home directory (shell doesn't do this automatically in Node.js)
+  if (exportDir.startsWith('~/')) {
+    exportDir = path.join(os.homedir(), exportDir.slice(2));
+  } else if (exportDir === '~') {
+    exportDir = os.homedir();
+  }
+  
+  // Ensure export directory exists
+  await fs.mkdir(exportDir, { recursive: true });
+  
+  // Build full filepath
   const fullFilename = filename.endsWith(`.${format}`) ? filename : `${filename}.${format}`;
-  const filepath = path.join(SESSIONS_EXPORT_DIR, fullFilename);
+  const filepath = path.join(exportDir, fullFilename);
   
   let commands: CommandHistoryEntry[];
   
@@ -261,7 +339,7 @@ export async function exportHistory(
       break;
     case 'txt':
       content = commands.map(cmd => {
-        let entry = `[${new Date(cmd.timestamp).toLocaleString()}] ${cmd.naturalLanguage}\n` +
+        let entry = `[${formatUTC(cmd.timestamp)}] ${cmd.naturalLanguage}\n` +
           `Command: ${cmd.command}\n` +
           `Status: ${cmd.success ? '✓' : '✗'} (exit code: ${cmd.exitCode})\n`;
         if (cmd.output) {
@@ -279,7 +357,7 @@ export async function exportHistory(
         commands.map(cmd => {
           let entry = `## ${cmd.naturalLanguage}\n\n` +
             `- **Command:** \`\`\`bash\n${cmd.command}\n\`\`\`\n` +
-            `- **Time:** ${new Date(cmd.timestamp).toLocaleString()}\n` +
+            `- **Time:** ${formatUTC(cmd.timestamp)}\n` +
             `- **Status:** ${cmd.success ? '✅ Success' : '❌ Failed'}\n` +
             `- **Exit Code:** ${cmd.exitCode}\n`;
           if (cmd.output) {
@@ -344,7 +422,7 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
  * Format history entry for display
  */
 export function formatHistoryEntry(entry: CommandHistoryEntry): string {
-  const time = new Date(entry.timestamp).toLocaleTimeString();
+  const time = formatUTCTime(entry.timestamp);
   const status = entry.success ? chalk.green('✓') : chalk.red('✗');
   const nl = chalk.cyan(entry.naturalLanguage);
   const cmd = chalk.yellow(entry.command);
@@ -356,7 +434,7 @@ export function formatHistoryEntry(entry: CommandHistoryEntry): string {
  * Format history entry for single-line menu display
  */
 export function formatHistoryEntryInline(entry: CommandHistoryEntry): string {
-  const time = new Date(entry.timestamp).toLocaleTimeString();
+  const time = formatUTCTime(entry.timestamp);
   const status = entry.success ? chalk.green('✓') : chalk.red('✗');
   const nl = chalk.cyan(entry.naturalLanguage);
   const cmd = chalk.yellow(entry.command);
@@ -384,9 +462,11 @@ export function getCurrentActiveSessionId(): string | null {
 
 /**
  * Switch the currently active session
- * Returns true if successful, false if session doesn't exist
+ * Returns true if successful, false if session doesn't exist or is owned by another terminal
+ * @param sessionId The session to switch to
+ * @param force If true, forcibly take ownership from another terminal
  */
-export async function switchActiveSession(sessionId: string): Promise<boolean> {
+export async function switchActiveSession(sessionId: string, force: boolean = false): Promise<boolean> {
   const sessions = await getSessions();
   const session = sessions.find(s => s.id === sessionId);
   
@@ -394,9 +474,27 @@ export async function switchActiveSession(sessionId: string): Promise<boolean> {
     return false;
   }
   
+  // Check if session is owned by another terminal
+  const isOwned = await isSessionOwnedByCurrentTerminal(sessionId);
+  if (!isOwned && !session.isShared) {
+    const owner = await getSessionOwner(sessionId);
+    if (owner) {
+      if (!force) {
+        // Session is actively owned by another terminal
+        return false;
+      }
+      // Force claim the session
+      await forceClaimSession(sessionId);
+    } else {
+      // No owner, claim it
+      await claimSession(sessionId);
+    }
+  }
+  
   // If session was ended, reopen it
   if (session.endTime) {
     delete session.endTime;
+    session.lastTerminalId = getTerminalId();
     await saveSessions(sessions);
   }
   
@@ -409,23 +507,32 @@ export async function switchActiveSession(sessionId: string): Promise<boolean> {
 
 /**
  * Create a new session and make it active
+ * @param name Optional session name
+ * @param shared Whether this session can be used by multiple terminals (default: false)
  */
-export async function createNewSession(name?: string): Promise<string> {
+export async function createNewSession(name?: string, shared: boolean = false): Promise<string> {
   await ensureHistoryDir();
   
   const sessionId = generateId();
-  const sessionName = name || `Session ${new Date().toLocaleString()}`;
+  const terminalId = getTerminalId();
+  const sessionName = name || `Session ${formatUTC(new Date())}`;
   
   const session: Session = {
     id: sessionId,
     startTime: new Date().toISOString(),
     name: sessionName,
-    commands: []
+    commands: [],
+    terminalId: terminalId,
+    lastTerminalId: terminalId,
+    isShared: shared
   };
   
   const sessions = await getSessions();
   sessions.push(session);
   await saveSessions(sessions);
+  
+  // Claim ownership of this session
+  await claimSession(sessionId);
   
   // Add to active sessions and make it the current active session
   activeSessions.add(sessionId);
@@ -460,6 +567,9 @@ export async function closeSession(sessionId: string): Promise<boolean> {
   session.endTime = new Date().toISOString();
   await saveSessions(sessions);
   
+  // Release terminal ownership of this session
+  await releaseSession(sessionId);
+  
   // Remove from active sessions
   activeSessions.delete(sessionId);
   
@@ -486,11 +596,36 @@ export function isSessionActive(sessionId: string): boolean {
 }
 
 /**
+ * Detach a session from the current terminal (remove from active list without closing)
+ * Used when a session is taken over by another terminal
+ */
+export function detachSession(sessionId: string): void {
+  activeSessions.delete(sessionId);
+  
+  // If this was the current active session, clear it
+  if (currentActiveSessionId === sessionId) {
+    const remaining = Array.from(activeSessions);
+    if (remaining.length > 0) {
+      currentActiveSessionId = remaining[0];
+      currentSessionId = remaining[0];
+    } else {
+      currentActiveSessionId = null;
+      currentSessionId = null;
+    }
+  }
+}
+
+/**
  * Initialize multi-session support on startup
  * If no sessions exist, creates a default session
+ * Also initializes terminal session tracking for cross-terminal support
  */
 export async function initMultiSession(): Promise<void> {
+  // Initialize terminal session tracking
+  await initTerminalSession();
+  
   const sessions = await getSessions();
+  const terminalId = getTerminalId();
   
   // If no sessions exist at all, create a default one
   if (sessions.length === 0) {
@@ -498,14 +633,75 @@ export async function initMultiSession(): Promise<void> {
     return;
   }
   
-  // If we have a currentSessionId but it's not active, add it
-  if (currentSessionId && !activeSessions.has(currentSessionId)) {
-    const session = sessions.find(s => s.id === currentSessionId);
+  // Check if there are any sessions previously owned by this terminal that are still open
+  const terminalSessions = await getCurrentTerminalSessions();
+  if (terminalSessions.length > 0) {
+    // Resume the first session owned by this terminal
+    const sessionId = terminalSessions[0];
+    const session = sessions.find(s => s.id === sessionId);
     if (session && !session.endTime) {
-      activeSessions.add(currentSessionId);
-      if (!currentActiveSessionId) {
-        currentActiveSessionId = currentSessionId;
+      activeSessions.add(sessionId);
+      currentActiveSessionId = sessionId;
+      currentSessionId = sessionId;
+      return;
+    }
+  }
+  
+  // Look for any open sessions that aren't owned by other terminals
+  for (const session of sessions) {
+    if (!session.endTime) {
+      // Check if this session is owned by another active terminal
+      const owner = await getSessionOwner(session.id);
+      if (!owner) {
+        // Session is available, claim it
+        const claimed = await claimSession(session.id);
+        if (claimed) {
+          activeSessions.add(session.id);
+          currentActiveSessionId = session.id;
+          currentSessionId = session.id;
+          
+          // Update last terminal ID
+          session.lastTerminalId = terminalId;
+          await saveSessions(sessions);
+          return;
+        }
       }
     }
   }
+  
+  // No available sessions, create a new one for this terminal
+  await createNewSession(`Terminal ${terminalId.split('-').slice(-2).join('-')}`);
 }
+
+/**
+ * Re-export terminal session functions for external use
+ */
+export {
+  getTerminalId,
+  getCurrentTerminalInfo,
+  getActiveTerminals,
+  getSessionsOwnedByOtherTerminals,
+  getCurrentTerminalSessions,
+  getTerminalDisplayName,
+  isSessionOwnedByCurrentTerminal,
+  getSessionOwner,
+  forceClaimSession,
+  // Session key authentication functions
+  getSessionKey,
+  getCurrentTerminalSessionKeys,
+  verifySessionKey,
+  takeoverSessionWithKey,
+  // Takeover request functions
+  createTakeoverRequest,
+  getPendingTakeoverRequests,
+  approveTakeoverRequest,
+  denyTakeoverRequest,
+  checkTakeoverRequestStatus,
+  // Session takeover detection
+  checkSessionTakeover,
+  getSessionsTakenOver,
+  // Event emitter for session changes
+  sessionEvents
+};
+
+export type { TerminalInfo, TakeoverRequest };

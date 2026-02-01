@@ -5,6 +5,10 @@ import chalk from 'chalk';
 import { executeCommand, searchFiles, configureMappings, listMappings } from './commands.js';
 import { initConfig } from './config.js';
 
+// Export terminal session module for external use
+export * from './terminal-session.js';
+export * from './history.js';
+
 const program = new Command();
 
 program

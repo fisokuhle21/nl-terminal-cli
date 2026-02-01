@@ -6,7 +6,7 @@ Talk to your terminal like a teammate. It translates natural language into real 
 
 ### Why it exists
 
-- Turn “list all files” into `ls -la` without thinking.
+- Turn "list all files" into `ls -la` without thinking.
 - Teach it your own shortcuts once, then reuse them forever.
 - Explore files, run commands, and review history without leaving the terminal.
 
@@ -93,12 +93,40 @@ nl-terminal --no-color
 - Built-in command database with placeholders
 - Custom mappings and interactive menus
 - Search, history, and multi-session support
+- Multi-terminal session management with secure takeover
+- Dangerous command warnings (rm, sudo) with confirmation prompts
+- Export history to custom folders
 - Runs on Node.js or Bun
+
+## Performance
+
+**Optimized with lazy loading** for fast startup and low memory usage:
+
+| Runtime | Startup Time | Memory | Notes |
+|---------|--------------|--------|-------|
+| Bun (direct) | ~46ms | ~53MB | Fastest - runs TypeScript directly |
+| Node.js | ~78ms | ~53MB | Requires build step |
+| Bun (bundled) | ~161ms | ~53MB | 1.9MB self-contained bundle |
+
+### Performance Optimizations
+- **Lazy loading** - Heavy modules (inquirer, ora, glob) load only when needed
+- **Deferred initialization** - Database and config load on first use
+- **Minimal startup path** - `--help` and `--version` don't load unnecessary modules
+
+Run performance benchmarks:
+
+```bash
+npm run test:benchmark    # Automated benchmark tests
+npm run perf              # Interactive performance testing
+```
 
 ## Development
 
 ```bash
 npm install
-npm run build
-npm test
+npm run build        # Build Node.js version
+npm run build:bun    # Build Bun version
+npm run build:all    # Build both versions
+npm test             # Run all tests
+npm run test:benchmark  # Run performance benchmarks
 ```

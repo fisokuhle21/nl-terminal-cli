@@ -71,9 +71,64 @@ nl-terminal-cli/
 
 ---
 
+#### `terminal-session.ts` (Multi-Terminal Session Management)
+**Purpose:** Manages cross-terminal session coordination, ownership tracking, and secure session takeover.
+**Size:** ~12KB (400+ lines)
+
+**Key Functions:**
+- `getTerminalId()` - Returns unique terminal identifier (PID + TTY + timestamp)
+- `generateSessionKey()` - Creates 8-character alphanumeric session key
+- `claimSession()` - Claims ownership of a session for current terminal
+- `releaseSession()` - Releases session ownership
+- `isSessionOwnedByCurrentTerminal()` - Checks if current terminal owns session
+- `getSessionOwner()` - Gets terminal info that owns a session
+- `takeoverSessionWithKey()` - Takes over session using session key
+- `createTakeoverRequest()` - Creates pending takeover request
+- `approveTakeoverRequest()` - Approves incoming takeover request
+- `denyTakeoverRequest()` - Denies incoming takeover request
+- `checkSessionTakeover()` - Checks if current session was taken over
+- `getPendingTakeoverRequests()` - Gets requests waiting for approval
+- `getCurrentTerminalSessionKeys()` - Gets keys for all sessions owned by terminal
+
+**Terminal Registry:**
+```typescript
+interface TerminalInfo {
+  id: string;           // Unique terminal ID
+  pid: number;          // Process ID
+  ttyPath: string;      // TTY device path
+  startTime: string;    // When terminal started
+  lastHeartbeat: string; // Last activity timestamp
+}
+
+interface TakeoverRequest {
+  id: string;
+  sessionId: string;
+  requestingTerminalId: string;
+  ownerTerminalId: string;
+  status: 'pending' | 'approved' | 'denied' | 'expired';
+  createdAt: string;
+  expiresAt: string;    // 60 seconds from creation
+}
+```
+
+**Storage:**
+- `~/.nl-terminal-cli/terminal-registry.json` - Terminal and session ownership data
+- Lock file mechanism for cross-process coordination
+
+**Session Key Format:**
+- 8 characters, alphanumeric (excludes confusing: 0, O, I, 1, L)
+- Example: `A3K7NX9R`
+
+**Heartbeat System:**
+- 5-second heartbeat interval
+- 15-second stale threshold
+- Auto-releases sessions from stale terminals
+
+---
+
 #### `history.ts` (Session & History Management)
 **Purpose:** Manages command history tracking and multi-session state.
-**Size:** ~15KB (450+ lines)
+**Size:** ~18KB (550+ lines)
 
 **Key Functions:**
 - `createNewSession()` - Creates a new session and makes it active
@@ -83,11 +138,12 @@ nl-terminal-cli/
 - `getActiveSessions()` - Returns list of active session IDs
 - `addToHistory()` - Records command with output, errors, and metadata
 - `reloadSession()` - Reloads archived session from disk with full command history
-- `exportHistory()` - Exports history to JSON/TXT/Markdown with full output
+- `exportHistory()` - Exports history to JSON/TXT/Markdown with full output (supports custom path)
 - `searchHistory()` - Searches across all sessions by query or command
 - `browseSessions()` - Interactive session browser with command counts
 - `clearHistory()` - Removes all history and session data
 - `deleteSession()` - Removes specific session by ID
+- `detachSession()` - Removes session from active list without closing (for takeover)
 
 **Session Types:**
 ```typescript
@@ -96,6 +152,9 @@ interface Session {
   name?: string;             // Optional session display name
   startTime: string;         // ISO timestamp
   endTime?: string;          // ISO timestamp if closed
+  terminalId?: string;       // Terminal that owns this session
+  lastTerminalId?: string;   // Previous terminal (for takeover tracking)
+  isShared?: boolean;        // Whether session can be shared
   commands: CommandEntry[];  // All executed commands
 }
 
@@ -116,7 +175,7 @@ interface CommandEntry {
 **Storage:**
 - `~/.nl-terminal-cli/sessions.json` - Persistent session metadata
 - `~/.nl-terminal-cli/history.json` - Flat command history with full output
-- `~/.nl-terminal-cli/sessions/` - Exported session files (auto-created on export)
+- `~/.nl-terminal-cli/sessions/` - Exported session files (default export location)
 
 **Multi-Session Flow:**
 1. CLI starts → `initMultiSession()` ensures an active session
@@ -584,9 +643,41 @@ Execute: executeInTerminal("mkdir my-app")
 
 **Features:**
 - Chalk for colored output
-- Ora for spinners
-- Inquirer for interactive prompts
+- Ora for spinners (lazy loaded)
+- Inquirer for interactive prompts (lazy loaded)
 - Cross-platform support
+
+---
+
+#### `lazy-modules.ts` (Lazy Loading Utilities)
+**Purpose:** Provides lazy-loaded versions of heavy modules to optimize startup time and memory usage.
+
+**Key Functions:**
+- `getInquirer()` - Lazy loads inquirer module (~5MB saved on startup)
+- `getOra()` - Lazy loads ora spinner module (~0.5MB saved)
+- `getGlob()` - Lazy loads glob module (~0.5MB saved)
+- `getChalk()` - Cached chalk reference (synchronous, lightweight)
+- `preloadModules()` - Preloads heavy modules in background
+- `isInquirerLoaded()` - Checks if inquirer is already loaded
+- `isOraLoaded()` - Checks if ora is already loaded
+- `isGlobLoaded()` - Checks if glob is already loaded
+
+**Performance Impact:**
+| Module | Memory Savings | When Loaded |
+|--------|---------------|-------------|
+| inquirer | ~5MB | First interactive prompt |
+| ora | ~0.5MB | First spinner display |
+| glob | ~0.5MB | First file search |
+
+**Usage Pattern:**
+```typescript
+// Instead of: import inquirer from 'inquirer';
+import { getInquirer } from './lazy-modules.js';
+
+// Later, when needed:
+const inquirer = await getInquirer();
+const { answer } = await inquirer.default.prompt([...]);
+```
 
 ---
 
@@ -646,15 +737,39 @@ Execute: executeInTerminal("mkdir my-app")
   - Separator detection
   - Edge cases
 
+#### `benchmark.test.ts` (Performance Test Suite)
+**Purpose:** Performance benchmarks comparing Node.js and Bun runtimes.
+
+**Test Coverage:**
+- **Startup Performance** - Tests `--help` and `--version` startup times
+- **Command Execution** - Measures simple command execution time
+- **Memory Usage** - Validates memory stays under thresholds (100MB Node, 80MB Bun)
+- **Benchmark Statistics** - 5 iterations with min/max/avg/median/stdDev
+- **Node.js vs Bun Comparison** - Side-by-side performance comparison
+
+**Performance Results (with lazy loading optimizations):**
+| Runtime | Startup | Memory | Notes |
+|---------|---------|--------|-------|
+| Bun (direct) | ~46ms | ~53MB | Fastest - runs TypeScript directly |
+| Node.js | ~78ms | ~53MB | Requires build step |
+| Bun (bundled) | ~161ms | ~53MB | 1.9MB self-contained bundle |
+
+**Optimization Techniques:**
+- **Lazy loading** - `inquirer`, `ora`, and `glob` load on-demand
+- **Deferred imports** - Heavy modules only load when interactive features used
+- **Cached modules** - Loaded modules are cached for reuse
+
+**Bun Build Options:**
+- `build:bun` - Full self-contained bundle (1.9MB)
+
 **Test Framework:**
 - Node.js built-in `node:test`
 - Node.js built-in `assert`
 
 **Usage:**
 ```bash
-npm test
-# or
-node --test tests/*.test.ts
+npm test              # Run all tests
+npm run test:benchmark  # Run performance benchmarks only
 ```
 
 ---
@@ -663,10 +778,39 @@ node --test tests/*.test.ts
 
 **Purpose:** Contains helper scripts for development and database management.
 
-**Typical Scripts:**
-- Database seeding scripts
-- Migration scripts
-- Development utilities
+**Scripts:**
+- `seed.ts` - Database seeding script
+- `perf-test.sh` - Interactive performance testing script
+
+#### `perf-test.sh` (Performance Testing Script)
+**Purpose:** Interactive menu for manual performance testing.
+
+**Features:**
+- Runtime detection (shows available Node.js and Bun builds)
+- Quick benchmarks (5 iterations with min/max/avg)
+- Detailed memory profiling
+- Verbose timing with `/usr/bin/time -v`
+- CPU profiling (generates `.cpuprofile` for Chrome DevTools)
+- Node.js vs Bun comparison mode
+
+**Usage:**
+```bash
+npm run perf           # Interactive menu
+npm run perf:quick     # Quick benchmark of --help
+./scripts/perf-test.sh "list files"  # Direct command benchmark
+```
+
+**Menu Options:**
+1. Quick benchmark (--help)
+2. Quick benchmark (--version)
+3. Quick benchmark (custom command)
+4. Detailed memory profile (--help)
+5. Detailed memory profile (custom command)
+6. Verbose timing with /usr/bin/time
+7. CPU profiling (Node.js only)
+8. Run all basic benchmarks
+9. Interactive mode test
+10. Node.js vs Bun comparison
 
 ---
 
@@ -675,15 +819,16 @@ node --test tests/*.test.ts
 **Purpose:** Contains compiled JavaScript and type definitions.
 
 **Files:**
-- `*.js` - Compiled JavaScript
+- `src/*.js` - Compiled Node.js JavaScript
+- `bun-cli.js` - Bundled Bun CLI (~1.88 MB)
 - `*.d.ts` - TypeScript declarations
 - `*.d.ts.map` - Source maps
 
 **Generated by:**
 ```bash
-npm run build
-# or
-npx tsc
+npm run build       # Build Node.js version
+npm run build:bun   # Build Bun version
+npm run build:all   # Build both versions
 ```
 
 ---
@@ -790,7 +935,7 @@ npx tsc
 - Fixed delay issues by avoiding piped streams for interactive editors
 - Installation indicators: ✅ for installed, ❌ for not installed
 
-### 7. **Command History System** ⭐ NEW v0.0.1
+### 7. **Command History System** v0.0.1
 - Automatic session tracking when CLI starts
 - History menu (📜 Command History) with options:
   - View recent commands (last 20, can re-run any)
@@ -803,7 +948,7 @@ npx tsc
 - Export shows full file path in success message
 - Full session reload with command history and outputs
 
-### 8. **Menu Style Selection** ⭐ NEW v0.0.1
+### 8. **Menu Style Selection** v0.0.1
 - Two menu modes available:
   - List view (default): Scrollable with arrow keys, full descriptions
   - Expand view: Single-key shortcuts, compact display
@@ -824,30 +969,57 @@ npx tsc
 | `c` | Clear screen |
 | `q` | Exit |
 
-### 9. **Compound Command Output Formatting** ⭐ NEW v0.0.1
+### 9. **Compound Command Output Formatting** v0.0.1
 - When running ls -la (in compound queries or standalone), output is now beautifully formatted
 - Features: colored permissions (green=read, yellow=write, red=execute), directories in blue bold, human-readable file sizes (K, M, G), file type color-coding by extension, column headers showing what each column means
 
-### 10. **Multi-Session Support** ⭐ NEW v0.0.1
+### 10. **Multi-Session Support** v0.0.1
 - Multiple active sessions can run simultaneously
 - Each session has independent command history and context
 - Current session details displayed in the menu header
 - Smart exit behavior: 'q' closes current session, switches to another if multiple exist
 - CLI only exits when closing the last session
 
-### 11. **Reload/Continue Session** ⭐ NEW v0.0.1
+### 11. **Multi-Terminal Session Management**
+- Different terminal windows can have their own sessions
+- Cross-terminal session coordination via file-based registry
+- Session ownership tracking with heartbeat monitoring (5-second interval, 15-second stale threshold)
+- **Session Keys**: Secure 8-character alphanumeric keys for session takeover authentication
+- **Takeover Request System**: Request approval from session owner (60-second expiry)
+- **Takeover Methods**:
+  - Enter session key (instant access with valid key)
+  - Request approval (waits up to 60 seconds for owner response)
+- **Session Recovery**: "SESSION TAKEN OVER" and "SESSION TRANSFERRED" screens
+- View session keys for sessions you own
+- Handle pending takeover requests with approve/deny options
+- Real-time notification badges for pending requests
+
+### 12. **Reload/Continue Session** v0.0.1
 - Load previous sessions with all commands and outputs
 - Continue adding commands to reloaded sessions
 - Session browser shows command counts and timestamps
 - Full session state restoration including output history
 
-### 12. **Glow Markdown Viewer** ⭐ NEW v0.0.1
+### 13. **Glow Markdown Viewer** v0.0.1
 - View markdown files with beautiful formatting
 - Auto-offered when opening .md or .markdown files
 - Can view exported markdown history files
 - Installation status shown in editor check
 
-### 13. **Intelligent Placeholder System** ⭐
+### 14. **Dangerous Command Warnings**
+- Extra warning prompts for risky commands (`rm`, `sudo`, etc.)
+- Prominent warning box with specific danger explanations:
+  - `rm`: "permanently deletes files, cannot be recovered from trash"
+  - `sudo`: "runs with root privileges, can modify system files"
+- Confirmation defaults to "No" to prevent accidental execution
+- Works in single commands, compound commands, and compound aliases
+
+### 15. **Custom Export Path**
+- Export history to default folder (`~/.nl-terminal-cli/sessions/`) or custom folder
+- Supports `~` expansion for home directory paths
+- Creates destination folder if it doesn't exist
+
+### 16. **Intelligent Placeholder System**
 - Dynamic argument extraction from natural language
 - Smart pattern matching for connecting words ("with", "to", "from", "on", etc.)
 - Quoted string handling (extracts content inside quotes)
@@ -1584,7 +1756,47 @@ async function checkAndInstallEditors(): Promise<void> {
 
 ## Version History
 
-### v0.0.1 (Current) - January 30, 2026
+### v0.0.2 (Current) - February 2026
+Feature release with multi-terminal session management, safety improvements, and performance optimizations.
+
+**New Features:**
+- ✅ **Multi-Terminal Session Management** - Cross-terminal session coordination
+  - File-based terminal registry (`~/.nl-terminal-cli/terminal-registry.json`)
+  - Session ownership tracking with heartbeat monitoring
+  - Session keys for secure takeover authentication (8-character alphanumeric)
+  - Takeover request system with approve/deny workflow
+  - Session recovery screens ("SESSION TAKEN OVER", "SESSION TRANSFERRED")
+  - View session keys for owned sessions
+  - Pending takeover request notifications with badges
+
+- ✅ **Dangerous Command Warnings** - Extra safety for risky commands
+  - Prominent warning box for `rm` and `sudo` commands
+  - Specific danger explanations for each command type
+  - Confirmation defaults to "No" to prevent accidents
+  - Works across single, compound, and alias commands
+
+- ✅ **Custom Export Path** - Export history to any folder
+  - Choose between default folder and custom path
+  - Supports `~` expansion for home directory
+  - Auto-creates destination folder if needed
+
+- ✅ **Performance Benchmarking** - Comprehensive performance testing
+  - Automated benchmark test suite (`npm run test:benchmark`)
+  - Interactive performance script (`npm run perf`)
+  - Node.js vs Bun comparison
+  - Memory usage and startup time measurements
+
+- ✅ **Memory Optimization** - Lazy loading for fast startup
+  - Lazy loading for `inquirer`, `ora`, and `glob` modules
+  - Startup time reduced from ~177ms to ~57ms (Node.js)
+  - Memory usage reduced from ~78MB to ~52MB
+  - Heavy modules only load when interactive features used
+
+- ✅ **Bun Build Optimization** - Self-contained bundle
+  - Full bundle (1.9MB) - No dependencies needed
+  - Bun direct from source is fastest (~46ms startup)
+
+### v0.0.1 - January 30, 2026
 Major feature release with multi-session support and command history system.
 
 **New Features:**
@@ -1672,10 +1884,11 @@ See README.md for contribution guidelines and development setup.
 
 ---
 
-**Last Updated:** January 30, 2026
+**Last Updated:** February 2026
 **Status:** Production Ready
 **Maintainer:** Development Team
-**Node.js:** 18+
+**Node.js:** 20.12+
+**Bun:** 1.0+
 **License:** MIT
 
 ---
@@ -1685,13 +1898,24 @@ See README.md for contribution guidelines and development setup.
 ### File Sizes
 | File | Size | Lines |
 |------|------|-------|
-| `commands.ts` | ~59KB | 1700+ |
+| `commands.ts` | ~62KB | 1800+ |
 | `database.ts` | ~49KB | 1200+ |
-| `history.ts` | ~15KB | 450+ |
+| `terminal-session.ts` | ~12KB | 400+ |
+| `history.ts` | ~18KB | 550+ |
 | `matcher.ts` | ~11KB | 350+ |
-| `utils.ts` | ~8KB | 300+ |
+| `utils.ts` | ~8KB | 350+ |
 | `config.ts` | ~5KB | 200+ |
 | `cli.ts` | ~5KB | 200+ |
+| `lazy-modules.ts` | ~2KB | 80+ |
+
+### Test Files
+| File | Purpose |
+|------|---------|
+| `benchmark.test.ts` | Performance benchmarks (Node.js vs Bun) |
+| `compound-commands.test.ts` | Compound command parsing tests |
+| `integration-cli.test.ts` | CLI integration tests |
+| `integration-history.test.ts` | History system tests |
+| `security.test.ts` | Security and injection prevention tests |
 
 ### Total Source Code
 - **~150KB** of TypeScript source

@@ -32,7 +32,10 @@
     "seed:bun": "bun run scripts/seed.ts",
     "test": "NL_TERMINAL_CLI_TEST=1 node --test dist/tests/*.test.js",
     "test:bun": "NL_TERMINAL_CLI_TEST=1 bun test",
-    "test:all": "npm run test && npm run test:bun"
+    "test:all": "npm run test && npm run test:bun",
+    "test:benchmark": "NL_TERMINAL_CLI_TEST=1 node --test dist/tests/benchmark.test.js",
+    "perf": "./scripts/perf-test.sh",
+    "perf:quick": "./scripts/perf-test.sh --help"
   },
   "keywords": [
     "cli",

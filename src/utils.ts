@@ -1,9 +1,12 @@
 import { spawn } from 'child_process';
-import inquirer from 'inquirer';
 import chalk from 'chalk';
-import ora from 'ora';
 import * as shellQuote from 'shell-quote';
 import type { ExecutionResult, CommandMapping } from './types.js';
+import { getInquirer, getOra } from './lazy-modules.js';
+
+// Type for ora spinner
+type Ora = Awaited<ReturnType<typeof getOra>>['default'];
+type OraSpinner = ReturnType<Ora>;
 
 /**
  * Gets the appropriate shell for the current platform
@@ -28,7 +31,8 @@ export function getShell(): { shell: string; args: string[] } {
 }
 
 export async function executeInTerminal(command: string, shell?: string): Promise<ExecutionResult> {
-  const spinner = ora('Executing command...').start();
+  const oraModule = await getOra();
+  const spinner = oraModule.default('Executing command...').start();
   
   return new Promise((resolve) => {
     const shellConfig = shell ? { shell, args: getShell().args } : getShell();
@@ -85,7 +89,8 @@ export async function promptInput(message: string, defaultValue?: string): Promi
     ? `${message} (Press Tab to use default)`
     : message;
   
-  const { answer } = await inquirer.prompt([{
+  const inquirer = await getInquirer();
+  const { answer } = await inquirer.default.prompt([{
     type: 'input',
     name: 'answer',
     message: chalk.blue(fullMessage),
@@ -103,7 +108,8 @@ export async function promptConfirm(message: string, defaultValue = true): Promi
   if (process.env.NL_TERMINAL_CLI_ASSUME_YES === '1') {
     return defaultValue;
   }
-  const { answer } = await inquirer.prompt([{
+  const inquirer = await getInquirer();
+  const { answer } = await inquirer.default.prompt([{
     type: 'confirm',
     name: 'answer',
     message: chalk.blue(message),
@@ -165,7 +171,8 @@ export async function selectFromList<T>(message: string, choices: { name: string
     return selectFromListFallback(message, choicesList);
   }
   
-  const { answer } = await inquirer.prompt([{
+  const inquirer = await getInquirer();
+  const { answer } = await inquirer.default.prompt([{
     type: 'list',
     name: 'answer',
     message: chalk.blue(message),
@@ -200,7 +207,8 @@ export async function selectFromSubmenu<T>(
   if (shouldUsePlainMenu()) {
     answer = await selectFromListFallback(message, navigationChoices);
   } else {
-    const promptAnswer = await inquirer.prompt([{
+    const inquirer = await getInquirer();
+    const promptAnswer = await inquirer.default.prompt([{
       type: 'list',
       name: 'answer',
       message: chalk.blue(message),
@@ -275,7 +283,8 @@ export async function selectFromExpand<T>(
     }
   }
   
-  const { answer } = await inquirer.prompt([{
+  const inquirer = await getInquirer();
+  const { answer } = await inquirer.default.prompt([{
     type: 'expand',
     name: 'answer',
     message: chalk.blue(message),
@@ -290,7 +299,8 @@ export async function selectFromExpand<T>(
 }
 
 export async function promptEditor(message: string, defaultValue?: string): Promise<string> {
-  const { answer } = await inquirer.prompt([{
+  const inquirer = await getInquirer();
+  const { answer } = await inquirer.default.prompt([{
     type: 'editor',
     name: 'answer',
     message: chalk.blue(message),
