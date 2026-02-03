@@ -38,12 +38,16 @@ jobs:
     
     - name: Run tests
       run: npm run test
+      env:
+        NL_TERMINAL_CLI_TEST: '1'
     
     - name: Test CLI version
       run: node dist/src/cli.js --version
     
     - name: Test CLI help
       run: node dist/src/cli.js --help
+      env:
+        NL_TERMINAL_CLI_TEST: '1'
 
   # ============================================
   # Bun Test Job
@@ -73,7 +77,9 @@ jobs:
       run: bun run build:bun
     
     - name: Run tests
-      run: NL_TERMINAL_CLI_TEST=1 bun test
+      run: bun test
+      env:
+        NL_TERMINAL_CLI_TEST: '1'
 
   # ============================================
   # Cross-Platform Compatibility Job

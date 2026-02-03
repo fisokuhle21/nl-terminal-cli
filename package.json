@@ -17,6 +17,7 @@
     "node": ">=20.12.0"
   },
   "scripts": {
+    "pretest": "npm run build:node",
     "build": "npm run build:node",
     "build:node": "tsc",
     "build:bun": "bun build ./src/cli.ts --outfile ./dist/bun-cli.js --target bun",

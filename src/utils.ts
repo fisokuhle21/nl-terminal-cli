@@ -439,18 +439,30 @@ export function formatTable(data: Record<string, any>[]): string {
 }
 
 export function printSuccess(message: string): void {
+  if (process.env.NL_TERMINAL_CLI_TEST === '1') {
+    return;
+  }
   console.log(chalk.green('✓ ' + message));
 }
 
 export function printError(message: string): void {
+  if (process.env.NL_TERMINAL_CLI_TEST === '1') {
+    return;
+  }
   console.log(chalk.red('✗ ' + message));
 }
 
 export function printInfo(message: string): void {
+  if (process.env.NL_TERMINAL_CLI_TEST === '1' && !message.startsWith('[dry-run]')) {
+    return;
+  }
   console.log(chalk.blue('ℹ ' + message));
 }
 
 export function printWarning(message: string): void {
+  if (process.env.NL_TERMINAL_CLI_TEST === '1') {
+    return;
+  }
   console.log(chalk.yellow('⚠ ' + message));
 }
 
