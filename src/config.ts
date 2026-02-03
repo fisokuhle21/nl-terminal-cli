@@ -50,7 +50,10 @@ export async function initConfig(): Promise<void> {
         confirmBeforeExecute: true,
         saveHistory: true,
         fuzzyMatchThreshold: 0.6,
-        maxResults: 10
+        maxResults: 10,
+        enableAutocomplete: true,
+        preferredEditor: undefined,
+        gitPlatform: 'auto'
       }
     };
     
@@ -68,11 +71,14 @@ export async function getConfig(): Promise<Config> {
     const config = JSON.parse(data) as Config;
     
     // Merge with defaults to ensure all settings exist
-    const defaults = {
+    const defaults: Config['settings'] = {
       confirmBeforeExecute: true,
       saveHistory: true,
       fuzzyMatchThreshold: 0.6,
-      maxResults: 10
+      maxResults: 10,
+      enableAutocomplete: true,
+      preferredEditor: undefined,
+      gitPlatform: 'auto'
     };
     
     config.settings = { ...defaults, ...config.settings };

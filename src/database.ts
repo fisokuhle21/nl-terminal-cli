@@ -1485,6 +1485,107 @@ function getDefaultCommands(): Array<{
       placeholders: [
         { name: 'container_name', description: 'Container name or ID', required: true }
       ]
+    },
+    // Git Platform (GitHub/GitLab/Bitbucket) Commands
+    {
+      naturalLanguage: ['create pull request', 'open pr', 'new pr', 'new pull request'],
+      commandTemplate: '{platform_cli} pr create --title "{title}" --body "{body}" --base "{base}"',
+      description: 'Create a new pull request on GitHub, GitLab, or Bitbucket',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'title', description: 'PR title', required: true },
+        { name: 'body', description: 'PR description', required: false },
+        { name: 'base', description: 'Base branch (defaults to main/master)', required: false }
+      ]
+    },
+    {
+      naturalLanguage: ['list pull requests', 'show prs', 'view prs', 'list open prs'],
+      commandTemplate: '{platform_cli} pr list',
+      description: 'List open pull requests',
+      category: 'git-platform',
+      placeholders: []
+    },
+    {
+      naturalLanguage: ['list closed pull requests', 'show closed prs'],
+      commandTemplate: '{platform_cli} pr list --state closed',
+      description: 'List closed pull requests',
+      category: 'git-platform',
+      placeholders: []
+    },
+    {
+      naturalLanguage: ['merge pull request', 'merge pr', 'accept pr'],
+      commandTemplate: '{platform_cli} pr merge {number}',
+      description: 'Merge an open pull request',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['checkout pull request', 'checkout pr', 'pr checkout'],
+      commandTemplate: '{platform_cli} pr checkout {number}',
+      description: 'Checkout a pull request locally',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['view pull request', 'pr view', 'show pr details'],
+      commandTemplate: '{platform_cli} pr view {number}',
+      description: 'View pull request details',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['comment on pull request', 'add pr comment', 'pr comment'],
+      commandTemplate: '{platform_cli} pr comment {number} --body "{body}"',
+      description: 'Add a comment to a pull request',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true },
+        { name: 'body', description: 'Comment text', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['assign pull request', 'add pr assignee'],
+      commandTemplate: '{platform_cli} pr edit {number} --add-assignee {assignee}',
+      description: 'Assign a pull request to a user',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true },
+        { name: 'assignee', description: 'Assignee username', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['request review', 'add pr reviewer', 'request pr review'],
+      commandTemplate: '{platform_cli} pr edit {number} --add-reviewer {reviewer}',
+      description: 'Request a review from a user',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true },
+        { name: 'reviewer', description: 'Reviewer username', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['close pull request', 'close pr'],
+      commandTemplate: '{platform_cli} pr close {number}',
+      description: 'Close a pull request without merging',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true }
+      ]
+    },
+    {
+      naturalLanguage: ['reopen pull request', 'reopen pr'],
+      commandTemplate: '{platform_cli} pr reopen {number}',
+      description: 'Reopen a closed pull request',
+      category: 'git-platform',
+      placeholders: [
+        { name: 'number', description: 'PR number', required: true }
+      ]
     }
   ];
 }

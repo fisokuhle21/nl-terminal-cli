@@ -2,18 +2,38 @@ import chalk from 'chalk';
 import path from 'path';
 import fs from 'fs/promises';
 import { getOra, getGlob } from '../lazy-modules.js';
-import { checkEditorInstalled, executeEditor, formatTable, printError, printInfo, printSuccess, printWarning, promptConfirm, promptInput, selectFromList } from '../utils.js';
+import { checkEditorInstalled, executeEditor, formatTable, printError, printInfo, printSuccess, printWarning, promptConfirm, promptInput, promptInputWithAutocomplete, selectFromList } from '../utils.js';
+import { getConfig } from '../config.js';
 import type { SearchOptions } from '../types.js';
 import { detectExtensionFromQuery } from './extension-map.js';
 
 export async function searchFiles(query?: string, options?: SearchOptions): Promise<void> {
   try {
-    let searchQuery = query;
-    if (!searchQuery) {
-      searchQuery = await promptInput('Search for files:');
+    let searchQuery: string;
+    if (query) {
+      searchQuery = query;
+    } else {
+      // Check if autocomplete is enabled in config
+      const config = await getConfig();
+      const useAutocomplete = config.settings.enableAutocomplete !== false;
+      
+      if (useAutocomplete) {
+        const result = await promptInputWithAutocomplete('Search for files:', undefined, 'files');
+        // Handle ESC cancellation (returns { cancelled: true })
+        if (typeof result === 'object' && result !== null && 'cancelled' in result && result.cancelled === true) {
+          return;
+        }
+        searchQuery = result as string;
+      } else {
+        const result = await promptInput('Search for files:');
+        if (result === null) {
+          return;
+        }
+        searchQuery = result;
+      }
     }
 
-    if (!searchQuery?.trim()) {
+    if (!searchQuery.trim()) {
       printWarning('No search query provided');
       return;
     }

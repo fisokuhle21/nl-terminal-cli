@@ -19,10 +19,14 @@ let _glob: GlobModule | null = null;
 /**
  * Lazy load inquirer (saves ~5MB on startup)
  * Only loaded when interactive prompts are needed
+ * Also registers the autocomplete plugin
  */
 export async function getInquirer(): Promise<InquirerModule> {
   if (!_inquirer) {
     _inquirer = await import('inquirer');
+    // Register autocomplete plugin
+    const autocompletePrompt = await import('inquirer-autocomplete-prompt');
+    _inquirer.default.registerPrompt('autocomplete', autocompletePrompt.default);
   }
   return _inquirer;
 }

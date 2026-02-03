@@ -12,25 +12,23 @@ Talk to your terminal like a teammate. It translates natural language into real 
 
 ## Quick start
 
+> **Note:** Published npm and Bun registry installs are coming soon. For now, install from source (see below).
+
 ```bash
-bun add -g nl-terminal-cli
-nl-terminal
+git clone https://github.com/fisokuhle21/nl-terminal-cli.git
+cd nl-terminal-cli
+bun run ./src/cli.ts
 ```
 
 ## Prerequisites
 
 - Node.js 20.12+ or Bun 1.0+
 - A terminal with TTY support for interactive menus
+- GitHub CLI (`gh`) for PR features (GitLab `glab` / Bitbucket `bb` supported if installed)
 
 ## Install options
 
-### Bun (recommended)
-
-Install globally:
-
-```bash
-bun add -g nl-terminal-cli
-```
+### From source (recommended for now)
 
 Run directly:
 
@@ -48,13 +46,7 @@ cd nl-terminal-cli
 bun build ./src/cli.ts --outfile ./dist/bun-cli.js --target bun
 ```
 
-### Node.js
-
-```bash
-npm install -g nl-terminal-cli
-```
-
-From source:
+### Node.js (from source)
 
 ```bash
 git clone https://github.com/fisokuhle21/nl-terminal-cli.git
@@ -77,6 +69,13 @@ nl-terminal run "list all files"
 nl-terminal run "create a folder called my-project"
 nl-terminal run "copy file readme.md to backup/readme.md"
 nl-terminal search "find all config files"
+nl-terminal run "create pull request"
+nl-terminal run "merge pull request 42"
+nl-terminal run "comment on pull request 42 with Looks good to me"
+nl-terminal run "assign pull request 42 to octocat"
+nl-terminal run "request review from octocat on pull request 42"
+nl-terminal run "close pull request 42"
+nl-terminal run "reopen pull request 42"
 ```
 
 ### Safety and automation
@@ -97,6 +96,7 @@ nl-terminal --no-color
 - Dangerous command warnings (rm, sudo) with confirmation prompts
 - Export history to custom folders
 - **Git integration** - Interactive diff viewer, branch switching, commit/push/pull
+- **Git PRs** - Create, list, merge, checkout PRs with conflict resolution helpers (GitHub-first)
 - Runs on Node.js or Bun
 
 ## Git Integration
@@ -113,6 +113,23 @@ The CLI includes a dedicated Git menu (`g` in expand mode) for common operations
 | **Log** | View commit history |
 
 When not in a git repository, the menu offers to initialize one with `git init`.
+
+## Git PRs
+
+The CLI includes a dedicated Git PRs menu for GitHub (and GitLab/Bitbucket if their CLIs are installed):
+
+| Feature | Description |
+|---------|-------------|
+| **Create PR** | Prompt for title/description and base branch (auto-detected) |
+| **List PRs** | View open/closed PRs and open in browser |
+| **Merge PR** | Merge with conflict detection and guided resolution |
+| **Checkout PR** | Checkout PR locally using the platform CLI |
+| **PR Actions** | Comment, assign, request review, close/reopen (GitHub CLI) |
+
+If a merge fails, the CLI offers:
+- Open GitHub’s conflict resolver in a browser
+- Step-by-step local resolution guide (with editor preference)
+- Resume conflict sessions per PR
 
 ## Performance
 

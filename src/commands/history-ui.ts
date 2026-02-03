@@ -4,7 +4,8 @@ import type { CommandHistoryEntry, Session } from '../history.js';
 import { executeWithConfirmation } from './execute-core.js';
 import { formatUTC } from '../history.js';
 import { clearMenuStack, isAtMainMenu, popMenu, pushMenu } from './menu-stack.js';
-import { executeEditor, printError, printInfo, printSuccess, printWarning, promptConfirm, promptInput, selectFromList, selectFromSubmenu } from '../utils.js';
+import { executeEditor, printError, printInfo, printSuccess, printWarning, promptConfirm, promptInput, promptInputWithAutocomplete, selectFromList, selectFromSubmenu } from '../utils.js';
+import { getConfig } from '../config.js';
 
 export async function browseHistory(): Promise<void> {
   pushMenu('history');
@@ -198,7 +199,24 @@ export async function browseSessions(): Promise<void> {
 }
 
 async function searchHistoryMenu(): Promise<void> {
-  const query = await promptInput('Search for commands:');
+  const config = await getConfig();
+  const useAutocomplete = config.settings.enableAutocomplete !== false;
+  
+  let query: string;
+  if (useAutocomplete) {
+    const result = await promptInputWithAutocomplete('Search for commands:', undefined, 'commands');
+    // Handle ESC cancellation (returns { cancelled: true })
+    if (typeof result === 'object' && result !== null && 'cancelled' in result && result.cancelled === true) {
+      return;
+    }
+    query = result as string;
+  } else {
+    const result = await promptInput('Search for commands:');
+    if (result === null) {
+      return;
+    }
+    query = result;
+  }
 
   if (!query.trim()) {
     printWarning('No search query provided');

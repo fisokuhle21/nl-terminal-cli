@@ -2,7 +2,9 @@ import { spawn } from 'child_process';
 import chalk from 'chalk';
 import * as shellQuote from 'shell-quote';
 import type { ExecutionResult, CommandMapping } from './types.js';
+import readline from 'node:readline';
 import { getInquirer, getOra } from './lazy-modules.js';
+import { commandAutocompleteSource, fileAutocompleteSource, smartAutocompleteSource } from './autocomplete.js';
 
 // Type for ora spinner
 type Ora = Awaited<ReturnType<typeof getOra>>['default'];
@@ -99,6 +101,104 @@ export async function promptInput(message: string, defaultValue?: string): Promi
   }]);
   
   return answer.trim() || defaultValue || '';
+}
+
+/**
+ * Prompt for input with smart autocomplete suggestions
+ * Combines command and file path autocomplete based on context
+ * Press ESC or Ctrl+C to cancel and return to main menu
+ * Returns { cancelled: true } when ESC is pressed
+ */
+export async function promptInputWithAutocomplete(
+  message: string,
+  defaultValue?: string,
+  mode: 'smart' | 'files' | 'commands' = 'smart'
+): Promise<string | { cancelled: true }> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    return defaultValue || '';
+  }
+  if (process.env.NL_TERMINAL_CLI_ASSUME_YES === '1' && defaultValue !== undefined) {
+    return defaultValue;
+  }
+
+  const fullMessage = defaultValue
+    ? `${message} (Type for suggestions, ESC for main menu)`
+    : `${message} (Type for suggestions, ESC for main menu)`;
+
+  const inquirer = await getInquirer();
+
+  const source = async (answersSoFar: any, input: string) => {
+    const value = input || '';
+    if (mode === 'files') {
+      return fileAutocompleteSource(value);
+    }
+    if (mode === 'commands') {
+      return commandAutocompleteSource(value);
+    }
+    return smartAutocompleteSource(value);
+  };
+
+  const inputStream = process.stdin;
+  readline.emitKeypressEvents(inputStream);
+  const wasRawMode = inputStream.isTTY ? inputStream.isRaw : undefined;
+  if (inputStream.isTTY && inputStream.isRaw !== true) {
+    inputStream.setRawMode(true);
+  }
+
+  let promptUi: { close: () => void } | null = null;
+  let cleanup: (() => void) | null = null;
+
+  const cancelPromise = new Promise<{ cancelled: true }>((resolve) => {
+    const onKeypress = (_str: string, key: { name?: string }) => {
+      if (key?.name === 'escape') {
+        if (cleanup) {
+          cleanup();
+        }
+        promptUi?.close();
+        resolve({ cancelled: true });
+      }
+    };
+
+    cleanup = () => {
+      inputStream.off('keypress', onKeypress);
+      if (inputStream.isTTY && typeof wasRawMode === 'boolean') {
+        inputStream.setRawMode(wasRawMode);
+      }
+    };
+
+    inputStream.on('keypress', onKeypress);
+  });
+
+  const prompt = inquirer.default.prompt([{
+    type: 'autocomplete',
+    name: 'answer',
+    message: chalk.blue(fullMessage),
+    default: defaultValue,
+    prefix: chalk.cyan('◇'),
+    source,
+    pageSize: 10,
+    suggestOnly: false,
+    emptyText: chalk.gray('  Start typing to see suggestions...')
+  }]) as unknown as Promise<{ answer: string }> & { ui?: { close: () => void } };
+
+  promptUi = (prompt as { ui?: { close: () => void } }).ui ?? null;
+
+  const runCleanup = () => {
+    if (cleanup) {
+      cleanup();
+    }
+  };
+
+  try {
+    const result = await Promise.race([
+      prompt.then(({ answer }) => answer || defaultValue || ''),
+      cancelPromise
+    ]);
+    runCleanup();
+    return result;
+  } finally {
+    runCleanup();
+  }
 }
 
 export async function promptConfirm(message: string, defaultValue = true): Promise<boolean> {

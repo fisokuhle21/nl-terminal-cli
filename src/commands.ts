@@ -6,6 +6,7 @@ export { detectCompoundCommand };
 import { isGitRepository } from './git.js';
 import {
   promptInput,
+  promptInputWithAutocomplete,
   promptConfirm,
   selectFromList,
   selectFromExpand,
@@ -36,9 +37,12 @@ import { manageSessions, reattachToSessionUI } from './commands/sessions-ui.js';
 import { browseDatabase } from './commands/database-ui.js';
 export { browseDatabase };
 import { ensureDatabase } from './commands/db-core.js';
+import { getAllCommands } from './database.js';
 import { listMappings } from './commands/mappings-ui.js';
 export { listMappings };
 import { configureMappings } from './commands/config-ui.js';
+import { platformMenu } from './commands/platform-ui.js';
+import { hasActiveConflictSession, loadConflictSession, conflictResolutionFlow } from './commands/conflict-helper.js';
 export { configureMappings };
 
 // Menu style preference - loaded from config
@@ -60,6 +64,19 @@ export async function mainLoop(): Promise<void> {
   await ensureDatabase();
   await initMultiSession();
   await loadMenuStyle();
+  // Check for active PR conflict resolution sessions
+  if (hasActiveConflictSession()) {
+    const session = loadConflictSession();
+    if (session) {
+      const resume = await promptConfirm(
+        chalk.yellow(`Resume conflict resolution for PR #${session.prNumber}: "${session.prTitle}"?`),
+        true
+      );
+      if (resume) {
+        await conflictResolutionFlow(session.prNumber, session.prTitle, session.platform);
+      }
+    }
+  }
   if (process.env.NL_TERMINAL_CLI_TEST !== '1') {
     clearScreen(banner);
   }
@@ -164,17 +181,24 @@ export async function mainLoop(): Promise<void> {
     }
   }
   
-  async function getSessionDisplayInfo(): Promise<{ info: string; pendingRequests: TakeoverRequest[] }> {
+  async function getSessionDisplayInfo(): Promise<{ info: string; pendingRequests: TakeoverRequest[]; builtInCount: number }> {
     const currentSessionId = getCurrentActiveSessionId();
     const pendingRequests = await getPendingTakeoverRequests();
     
-    if (!currentSessionId) return { info: chalk.gray('No active session'), pendingRequests };
+    if (!currentSessionId) return { info: chalk.gray('No active session'), pendingRequests, builtInCount: 0 };
     
     const session = await getSessionInfo(currentSessionId);
-    if (!session) return { info: chalk.gray('No active session'), pendingRequests };
+    if (!session) return { info: chalk.gray('No active session'), pendingRequests, builtInCount: 0 };
     
     const activeCount = getActiveSessions().length;
     const cmdCount = session.commands.length;
+    let builtInCount = 0;
+    try {
+      const commands = await getAllCommands();
+      builtInCount = commands.length;
+    } catch {
+      builtInCount = 0;
+    }
     
     // Check for other terminals
     const otherTerminals = await getActiveTerminals();
@@ -185,13 +209,13 @@ export async function mainLoop(): Promise<void> {
       terminalInfo = chalk.yellow(` | ${otherCount} other terminal${otherCount !== 1 ? 's' : ''}`);
     }
     
-    const info = `${chalk.cyan(session.name || 'Unnamed')} ${chalk.gray(`(${cmdCount} commands, ${activeCount} active session${activeCount !== 1 ? 's' : ''}${terminalInfo})`)}`;
+    const info = `${chalk.cyan(session.name || 'Unnamed')} ${chalk.gray(`(${cmdCount} commands, ${activeCount} active session${activeCount !== 1 ? 's' : ''}${terminalInfo}, ${builtInCount} built-in commands)`)} `;
     
-    return { info, pendingRequests };
+    return { info, pendingRequests, builtInCount };
   }
   
   async function showMenu(): Promise<string | null> {
-    const { info: sessionInfo, pendingRequests } = await getSessionDisplayInfo();
+    const { info: sessionInfo, pendingRequests, builtInCount } = await getSessionDisplayInfo();
     
     console.log(chalk.gray(`\n💻 Current Session: ${sessionInfo}\n`));
     
@@ -227,8 +251,9 @@ export async function mainLoop(): Promise<void> {
         { name: chalk.blue('Search for files') + chalk.gray(' - Find files by description'), value: 'search', key: 's' },
         { name: chalk.yellow('List saved commands') + chalk.gray(' - View your command mappings'), value: 'list', key: 'l' },
         { name: chalk.magenta('Configure mappings') + chalk.gray(' - Add/edit/delete commands'), value: 'config', key: 'm' },
-        { name: chalk.cyan('Built-in commands') + chalk.gray(' - View pre-built command database'), value: 'database', key: 'b' },
+        { name: chalk.cyan(`Built-in commands (${builtInCount})`) + chalk.gray(' - View pre-built command database'), value: 'database', key: 'b' },
         { name: chalk.green('Recent history') + chalk.gray(' - View and re-run previous commands'), value: 'history', key: 'r' },
+        { name: chalk.blue('Git PRs') + chalk.gray(' - Create, merge, manage pull requests'), value: 'git-platform', key: 'p' },
         { name: gitLabel, value: 'git', key: 'g' },
         { name: chalk.red('Extras') + chalk.gray(' - Check editors and open installation guides'), value: 'install-editors', key: 'x' },
         { name: chalk.blue('New/Switch Session') + chalk.gray(' - Manage active sessions'), value: 'sessions', key: 'n' },
@@ -253,8 +278,9 @@ export async function mainLoop(): Promise<void> {
         { name: chalk.blue('🔍 Search for files') + chalk.gray(' - Find files by description'), value: 'search' },
         { name: chalk.yellow('📋 List saved commands') + chalk.gray(' - View your command mappings'), value: 'list' },
         { name: chalk.magenta('⚙️  Configure mappings') + chalk.gray(' - Add/edit/delete commands'), value: 'config' },
-        { name: chalk.cyan('📚 Built-in commands') + chalk.gray(' - View pre-built command database'), value: 'database' },
+        { name: chalk.cyan(`📚 Built-in commands (${builtInCount})`) + chalk.gray(' - View pre-built command database'), value: 'database' },
         { name: chalk.green('📜 Recent history') + chalk.gray(' - View and re-run previous commands'), value: 'history' },
+        { name: chalk.blue('🔀 Git PRs') + chalk.gray(' - Create, merge, manage pull requests'), value: 'git-platform' },
         { name: gitLabel, value: 'git' },
         { name: chalk.red('🔧 Extras') + chalk.gray(' - Check editors and open installation guides'), value: 'install-editors' },
         { name: chalk.blue('🔄 New/Switch Session') + chalk.gray(' - Manage active sessions'), value: 'sessions' },
@@ -351,6 +377,9 @@ export async function mainLoop(): Promise<void> {
       case 'history':
         await browseHistory();
         break;
+      case 'git-platform':
+        await platformMenu();
+        break;
       case 'install-editors':
         await checkAndInstallEditors();
         break;
@@ -379,13 +408,26 @@ async function executeCommandFromMenu(): Promise<void> {
   console.log(chalk.gray('💡 Tip: You can chain multiple commands using:'));
   console.log(chalk.gray('   "and", "then", "after that", "followed by", ";", "&&"'));
   console.log(chalk.gray('   Example: "create folder test and list files"\n'));
-  
-  const input = await promptInput(chalk.cyan('Enter your command in natural language:'));
+
+  const config = await getConfig();
+  const useAutocomplete = config.settings.enableAutocomplete !== false;
+
+  let input = '';
+  if (useAutocomplete) {
+    const result = await promptInputWithAutocomplete(chalk.cyan('Enter your command in natural language:'), undefined, 'smart');
+    if (typeof result === 'object' && result !== null && 'cancelled' in result && result.cancelled === true) {
+      return;
+    }
+    input = result as string;
+  } else {
+    input = await promptInput(chalk.cyan('Enter your command in natural language:'));
+  }
+
   if (!input || !input.trim()) {
     printWarning('No command provided');
     return;
   }
-  
+
   await executeCommand(input);
 }
 

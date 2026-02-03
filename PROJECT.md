@@ -11,6 +11,7 @@ The **NL Terminal CLI** is a standalone command-line tool that turns natural lan
 - **Two runtimes, one surface:** Node.js for compatibility and Bun for speed, with a thin runtime switch in the database layer.
 - **Explicit execution:** Natural language is mapped to concrete commands you can see and confirm, keeping the CLI safe and predictable.
 - **Session-aware UX:** Multi-session history mirrors real terminal workflows and makes it easy to return to prior work.
+- **Git PR management:** Built-in PR workflows for GitHub (primary), with GitLab/Bitbucket support if their CLIs are installed.
 - **Automation-friendly flags:** `--dry-run`, `--yes`, and `--no-color` make the CLI safe for scripts and CI.
 
 ---
@@ -233,6 +234,8 @@ interface CommandEntry {
 - `src/commands/database-ui.ts` - Database browsing + management menus
 - `src/commands/history-ui.ts` - History browsing/search/export menus
 - `src/commands/git-ui.ts` - Git interactive menu
+- `src/commands/platform-ui.ts` - Git PR management menu (create/list/merge/checkout/actions)
+- `src/commands/conflict-helper.ts` - Merge conflict resolution helper with resume support
 - `src/commands/sessions-ui.ts` - Session management/takeover menus
 - `src/commands/search.ts` - File search UI
 - `src/commands/execute-core.ts` - Command execution + confirmation
@@ -245,6 +248,7 @@ interface CommandEntry {
 - `mainLoop()` - Adapts display based on `menuStyle` setting
 - List view: Scrollable with arrow keys, full descriptions
 - Expand view: Single-key shortcuts (e, s, l, m, d, h, v, x, c, q)
+  - Git PRs option: `p`
 
 **Compound Command Support:**
 - `detectCompoundCommand()` - Detects chains using "and", "then", "&&", ";"
@@ -361,6 +365,8 @@ interface CommandEntry {
 - `database` - 6 commands (migrate, seed, backup, etc.)
 - `network` - 14 commands (curl, wget, ping, ssh, etc.)
 - `text` - 23 commands (grep, awk, sed, cat, etc.)
+- `git-platform` - PR workflows (create/list/merge/checkout/view)
+  - Includes: comment, assign, request review, close, reopen
 
 **Key Functions:**
 - `initDatabase()` - Creates database tables
@@ -1002,8 +1008,8 @@ npm run build:all   # Build both versions
 - Beautiful output formatting for each command
 
 ### 3. **SQLite Database**
-- 158 pre-built commands
-- 8 categories (file, git, npm, system, docker, database, network, text)
+- 165+ pre-built commands
+- 9+ categories (file, git, git-platform, npm, bun, system, docker, database, network, text)
 - Placeholder support for arguments with intelligent extraction
 - Searchable command database
 
@@ -1061,6 +1067,7 @@ npm run build:all   # Build both versions
 | `m` | Configure mappings |
 | `d` | Database commands |
 | `h` | Command History |
+| `p` | Git PRs |
 | `v` | Switch menu style |
 | `x` | Check editors |
 | `c` | Clear screen |
@@ -1131,6 +1138,8 @@ npm run build:all   # Build both versions
 - Compound command aliases
 - Fuzzy matching threshold
 - Menu style preference
+- PR conflict sessions saved per-PR in `~/.nl-terminal-cli/.conflicts/`
+- Preferred editor for conflict resolution (nano/vim/fresh)
 
 ---
 

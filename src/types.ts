@@ -50,6 +50,9 @@ export interface Config {
     saveHistory: boolean;
     fuzzyMatchThreshold: number;
     maxResults: number;
+    enableAutocomplete: boolean;
+    preferredEditor?: 'nano' | 'vim' | 'fresh';
+    gitPlatform?: 'github' | 'gitlab' | 'bitbucket' | 'auto';
   };
 }
 

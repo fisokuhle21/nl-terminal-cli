@@ -51,6 +51,7 @@
     "commander": "^11.1.0",
     "glob": "^10.3.10",
     "inquirer": "^9.2.12",
+    "inquirer-autocomplete-prompt": "^3.0.1",
     "ora": "^9.0.0",
     "shell-quote": "^1.8.3",
     "string-similarity": "^4.0.4"

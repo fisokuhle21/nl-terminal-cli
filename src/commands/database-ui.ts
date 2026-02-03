@@ -12,7 +12,6 @@ export async function browseDatabase(): Promise<void> {
   while (true) {
     const result = await selectFromSubmenu('Database Options:', [
       { name: '📋 List all commands by category', value: 'bycategory' },
-      { name: '🔍 Search commands', value: 'search' },
       { name: '⭐ Show popular commands', value: 'popular' }
     ]);
 
@@ -31,9 +30,6 @@ export async function browseDatabase(): Promise<void> {
         case 'bycategory':
           await listCommandsByCategory();
           break;
-        case 'search':
-          await searchDatabaseCommands();
-          break;
         case 'popular':
           await showPopularCommands();
           break;
@@ -49,7 +45,7 @@ async function listCommandsByCategory(): Promise<void> {
   pushMenu('database-category');
 
   while (true) {
-    const categories = ['file', 'git', 'npm', 'bun', 'system', 'docker', 'database', 'network', 'text'];
+    const categories = ['file', 'git', 'git-platform', 'npm', 'bun', 'system', 'docker', 'database', 'network', 'text'];
     const categoryResult = await selectFromSubmenu('Select category:', [
       ...categories.map(c => ({ name: `${getCategoryIcon(c)} ${c.charAt(0).toUpperCase() + c.slice(1)}`, value: c }))
     ]);
@@ -99,42 +95,6 @@ async function listCommandsByCategory(): Promise<void> {
   }
 }
 
-async function searchDatabaseCommands(): Promise<void> {
-  const query = await promptInput('Search for commands:');
-  if (!query.trim()) {
-    printWarning('No search query provided');
-    return;
-  }
-
-  const { searchCommands } = await import('../database.js');
-  const commands = await searchCommands(query);
-
-  if (commands.length === 0) {
-    printWarning('No commands found matching your query');
-    return;
-  }
-
-  printSuccess(`Found ${commands.length} command(s)`);
-  const choices = commands.map((cmd, idx) => ({
-    name: `${idx + 1}. [${cmd.category}] ${chalk.cyan(cmd.naturalLanguage[0])} → ${chalk.yellow(cmd.commandTemplate)}`,
-    value: cmd
-  }));
-
-  const selected = await selectFromSubmenu('Select a command to view details:', choices, true, true);
-
-  if (selected.action === 'back' || selected.action === null) {
-    return;
-  }
-
-  if (selected.action === 'main') {
-    clearMenuStack();
-    return;
-  }
-
-  if (selected.action === 'select' && selected.value) {
-    displayCommandDetails(selected.value);
-  }
-}
 
 async function showPopularCommands(): Promise<void> {
   const allCommands = await getAllCommands();
@@ -219,6 +179,7 @@ function getCategoryIcon(category: string): string {
   const icons: Record<string, string> = {
     file: '📁',
     git: '⎇ ',
+    'git-platform': '🔀',
     npm: '📦',
     bun: '🥟',
     system: '⚙️',
@@ -303,8 +264,8 @@ async function addDatabaseCommand(): Promise<void> {
   const placeholders: { name: string; description: string; required: boolean; defaultValue?: string }[] = [];
 
   if (placeholdersText.trim()) {
-    placeholdersText.split(',').forEach(p => {
-      const parts = p.split('|').map(s => s.trim());
+    placeholdersText.split(',').forEach((part) => {
+      const parts = part.split('|').map((segment) => segment.trim());
       if (parts[0]) {
         placeholders.push({
           name: parts[0],
