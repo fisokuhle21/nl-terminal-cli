@@ -75,7 +75,7 @@ async function runCliBenchmark(
     const startUsage = process.cpuUsage();
     const cliPath = getCliPath(runtime);
     
-    const child = spawn(runtime, [cliPath, ...args], {
+  const child = spawn(runtime, [cliPath, ...args], {
       cwd,
       env: {
         ...process.env,
@@ -93,14 +93,17 @@ async function runCliBenchmark(
       reject(new Error(`Benchmark timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
-    child.on('close', (code) => {
+    child.on('close', async (code) => {
       clearTimeout(timeout);
       const endTime = process.hrtime.bigint();
       const endUsage = process.cpuUsage(startUsage);
       
+      // Approximate child memory usage on CI (process.memoryUsage is parent)
+      const memoryUsed = await getProcessMemoryUsage(child.pid);
+
       resolve({
         duration: Number(endTime - startTime) / 1e6,
-        memoryUsed: process.memoryUsage().rss,
+        memoryUsed,
         cpuUser: endUsage.user,
         cpuSystem: endUsage.system,
         exitCode: code,
@@ -113,6 +116,34 @@ async function runCliBenchmark(
       reject(err);
     });
   });
+}
+
+async function getProcessMemoryUsage(pid?: number): Promise<number> {
+  if (!pid) {
+    return process.memoryUsage().rss;
+  }
+
+  try {
+    if (process.platform === 'win32') {
+      const { execSync } = await import('node:child_process');
+      const output = execSync(`wmic process where processid=${pid} get WorkingSetSize /value`, { encoding: 'utf-8' });
+      const match = output.match(/WorkingSetSize=(\d+)/);
+      if (match) {
+        return Number(match[1]);
+      }
+    } else {
+      const { execSync } = await import('node:child_process');
+      const output = execSync(`ps -o rss= -p ${pid}`, { encoding: 'utf-8' });
+      const rssKb = Number(output.trim());
+      if (!Number.isNaN(rssKb)) {
+        return rssKb * 1024;
+      }
+    }
+  } catch {
+    return process.memoryUsage().rss;
+  }
+
+  return process.memoryUsage().rss;
 }
 
 /**
