@@ -13,6 +13,11 @@ const rootDir = process.cwd();
 const nodeCliPath = path.join(rootDir, 'dist', 'src', 'cli.js');
 const bunCliPath = path.join(rootDir, 'dist', 'bun-cli.js');
 
+const isBun = typeof process.versions.bun !== 'undefined';
+const isDist = __filename.includes('dist/') || __filename.includes('dist\\');
+
+if (!isBun || !isDist) {
+
 // Check if Bun is available
 function isBunAvailable(): boolean {
   try {
@@ -408,3 +413,5 @@ describe('Performance Benchmarks', () => {
     });
   });
 });
+}
+

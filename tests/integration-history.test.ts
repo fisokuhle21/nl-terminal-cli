@@ -9,6 +9,13 @@ import {
   getAllSessions,
   reloadSession
 } from '../src/history.js';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const isBun = typeof process.versions.bun !== 'undefined';
+const isDist = __filename.includes('dist/') || __filename.includes('dist\\');
+
+if (!isBun || !isDist) {
 
 describe('History integration', () => {
   let tempDir = '';
@@ -40,3 +47,5 @@ describe('History integration', () => {
     assert.strictEqual(reloaded?.commands.length, 1);
   });
 });
+}
+

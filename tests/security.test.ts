@@ -2,7 +2,13 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { replacePlaceholders } from '../src/matcher.js';
 import { getShell, getPlatform } from '../src/utils.js';
+import { fileURLToPath } from 'node:url';
 
+const __filename = fileURLToPath(import.meta.url);
+const isBun = typeof process.versions.bun !== 'undefined';
+const isDist = __filename.includes('dist/') || __filename.includes('dist\\');
+
+if (!isBun || !isDist) {
 describe('Security Tests', () => {
   describe('Command Injection Prevention', () => {
     it('should escape semicolons in values', () => {
@@ -75,3 +81,5 @@ describe('Security Tests', () => {
     });
   });
 });
+}
+

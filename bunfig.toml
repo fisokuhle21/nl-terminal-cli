@@ -1,4 +1,0 @@
-[test]
-# Only run typescript tests in tests directory
-# This helps prevent running compiled JS files in dist/
-testMatch = ["tests/**/*.test.ts"]

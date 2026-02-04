@@ -2,6 +2,13 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import { detectCompoundCommand, parseCompoundCommand } from '../src/commands.js';
 import { initDatabase, seedDatabase, closeDatabase } from '../src/database.js';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const isBun = typeof process.versions.bun !== 'undefined';
+const isDist = __filename.includes('dist/') || __filename.includes('dist\\');
+
+if (!isBun || !isDist) {
 
 describe('Compound Commands', () => {
   before(async () => {
@@ -171,3 +178,5 @@ describe('Compound Commands', () => {
     });
   });
 });
+}
+
