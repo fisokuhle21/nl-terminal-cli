@@ -88,7 +88,7 @@ jobs:
       run: npm run build:node
     
     - name: Run tests
-      run: bun test
+      run: bun test tests
       env:
         NL_TERMINAL_CLI_TEST: '1'
 
