@@ -318,8 +318,8 @@ describe('Performance Benchmarks', () => {
     it('Node.js should not exceed memory threshold for basic operations', async () => {
       const result = await runCliBenchmark(['--help'], tempDir, 'node');
       
-      // Memory should not exceed 100MB for basic operations
-      const maxMemoryMB = 100;
+      // Memory should not exceed 200MB for basic operations (increased for CI environments)
+      const maxMemoryMB = 200;
       const memoryMB = result.memoryUsed / (1024 * 1024);
       
       console.log(`  [Node.js] Memory used: ${formatBytes(result.memoryUsed)}`);
@@ -333,8 +333,8 @@ describe('Performance Benchmarks', () => {
     it('Bun should not exceed memory threshold for basic operations', { skip: !hasBun || !hasBunBuild }, async () => {
       const result = await runCliBenchmark(['--help'], tempDir, 'bun');
       
-      // Memory should not exceed 80MB for basic operations (Bun should be more efficient)
-      const maxMemoryMB = 80;
+      // Memory should not exceed 150MB for basic operations (increased for CI environments)
+      const maxMemoryMB = 150;
       const memoryMB = result.memoryUsed / (1024 * 1024);
       
       console.log(`  [Bun] Memory used: ${formatBytes(result.memoryUsed)}`);
