@@ -11,6 +11,11 @@ const __dirname = path.dirname(__filename);
 const rootDir = process.cwd();
 const distCli = path.join(rootDir, 'dist', 'src', 'cli.js');
 
+const isBun = typeof process.versions.bun !== 'undefined';
+const isDist = __filename.includes('dist/') || __filename.includes('dist\\');
+
+if (!isBun || !isDist) {
+
 async function runCli(args: string[], cwd: string): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn('node', [distCli, ...args], {
@@ -68,3 +73,5 @@ describe('CLI integration', () => {
     assert.ok(result.stdout.includes('[dry-run]'));
   });
 });
+}
+

@@ -11,38 +11,42 @@ import {
   getRemoteBranches,
   getAllBranches,
   getGitStatus,
-  getGitDiff,
-  getChangedFiles,
   formatStatusSummary,
   formatDetailedStatus,
-  formatCommitLog,
+  getGitDiff,
   formatEnhancedDiff,
-  switchBranch,
+  getChangedFiles,
+  getCommitLog,
+  formatCommitLog,
   createBranch,
   deleteBranch,
-  stageAll,
+  gitInit,
   gitCommit,
   gitPush,
   gitPull,
-  gitInit,
-  getCommitLog
+  switchBranch
 } from '../src/git.js';
-import { spawnSync } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import path from 'node:path';
+import fs from 'node:fs';
+import { execSync } from 'node:child_process';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 
-// Helper to run git commands
-function runGit(args: string[], cwd?: string): { success: boolean; stdout: string } {
-  const result = spawnSync('git', args, {
-    encoding: 'utf-8',
-    cwd: cwd || process.cwd()
-  });
-  return {
-    success: result.status === 0,
-    stdout: result.stdout?.trim() || ''
-  };
-}
+const __filename = fileURLToPath(import.meta.url);
+const isBun = typeof process.versions.bun !== 'undefined';
+const isDist = __filename.includes('dist/') || __filename.includes('dist\\');
+
+const runGit = (args: string[], cwd: string = process.cwd()) => {
+
+  try {
+    execSync(`git ${args.join(' ')}`, { cwd, stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+if (!isBun || !isDist) {
 
 describe('Git Utilities', () => {
   describe('isGitRepository', () => {
@@ -359,3 +363,5 @@ index abc123..def456 100644
     });
   });
 });
+}
+

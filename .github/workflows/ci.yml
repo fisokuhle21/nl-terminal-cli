@@ -38,12 +38,16 @@ jobs:
     
     - name: Run tests
       run: npm run test
+      env:
+        NL_TERMINAL_CLI_TEST: '1'
     
     - name: Test CLI version
       run: node dist/src/cli.js --version
     
     - name: Test CLI help
       run: node dist/src/cli.js --help
+      env:
+        NL_TERMINAL_CLI_TEST: '1'
 
   # ============================================
   # Bun Test Job
@@ -65,15 +69,28 @@ jobs:
       uses: oven-sh/setup-bun@v1
       with:
         bun-version: latest
+
+    - name: Setup Node.js for tests
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
     
     - name: Install dependencies
       run: bun install
+
+    - name: Install Node.js dependencies
+      run: npm ci
     
     - name: Build project for Bun
       run: bun run build:bun
+
+    - name: Build project for Node.js tests
+      run: npm run build:node
     
     - name: Run tests
-      run: NL_TERMINAL_CLI_TEST=1 bun test
+      run: bun test tests
+      env:
+        NL_TERMINAL_CLI_TEST: '1'
 
   # ============================================
   # Cross-Platform Compatibility Job

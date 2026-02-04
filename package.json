@@ -17,6 +17,7 @@
     "node": ">=20.12.0"
   },
   "scripts": {
+    "pretest": "npm run build:node",
     "build": "npm run build:node",
     "build:node": "tsc",
     "build:bun": "bun build ./src/cli.ts --outfile ./dist/bun-cli.js --target bun",
@@ -30,10 +31,10 @@
     "start:bun": "bun run dist/bun-cli.js",
     "seed": "node --loader ts-node/esm scripts/seed.ts",
     "seed:bun": "bun run scripts/seed.ts",
-    "test": "NL_TERMINAL_CLI_TEST=1 node --test dist/tests/*.test.js",
-    "test:bun": "NL_TERMINAL_CLI_TEST=1 bun test",
+    "test": "node scripts/test-runner.js",
+    "test:bun": "bun test tests/*.test.ts",
     "test:all": "npm run test && npm run test:bun",
-    "test:benchmark": "NL_TERMINAL_CLI_TEST=1 node --test dist/tests/benchmark.test.js",
+    "test:benchmark": "node --test dist/tests/benchmark.test.js",
     "perf": "./scripts/perf-test.sh",
     "perf:quick": "./scripts/perf-test.sh --help"
   },

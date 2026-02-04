@@ -236,9 +236,11 @@ export async function mainLoop(): Promise<void> {
     if (menuStyle === 'expand') {
       // Display shortcut hints in the same style as session info
       const shortcutLine1 = '(e)xecute | (s)earch | (l)ist | (m)appings | (b)uilt-in | (r)ecent';
-      const shortcutLine2 = '(g)it | e(x)tras | (n)ew session | (c)lear | (t)oggle | (q)uit | (h)elp';
+      const shortcutLine2 = '(g)it | e(x)tras | (n)ew session | (c)lear | (t)oggle | (q)uit';
+      const shortcutLine3 = '(h)elp | (p)Rs';
       console.log(chalk.gray(`Options: ${shortcutLine1}`));
-      console.log(chalk.gray(`         ${shortcutLine2}\n`));
+      console.log(chalk.gray(`         ${shortcutLine2}`));
+      console.log(chalk.gray(`         ${shortcutLine3}\n`));
       
       // Expand style: single-key shortcuts for quick access
       const isGitRepo = isGitRepository();
