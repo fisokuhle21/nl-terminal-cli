@@ -31,7 +31,7 @@
     "start:bun": "bun run dist/bun-cli.js",
     "seed": "node --loader ts-node/esm scripts/seed.ts",
     "seed:bun": "bun run scripts/seed.ts",
-    "test": "node --test dist/tests/*.test.js",
+    "test": "node scripts/test-runner.js",
     "test:bun": "bun test tests/*.test.ts",
     "test:all": "npm run test && npm run test:bun",
     "test:benchmark": "node --test dist/tests/benchmark.test.js",
